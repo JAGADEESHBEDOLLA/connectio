@@ -1,0 +1,180 @@
+import { useMutation } from "@tanstack/react-query";
+import { KeyRound, LoaderCircle, ShieldCheck } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { Navigate, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+
+import { AUTH_MFA_VERIFY } from "@/config/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { apiClient } from "@/lib/client";
+import { useAuthStore } from "@/store/auth-store";
+
+export function AdminMfaVerifyPage() {
+  const navigate = useNavigate();
+  const pendingMfaSession = useAuthStore((state) => state.pendingMfaSession);
+  const setSession = useAuthStore((state) => state.setSession);
+  const clearPendingMfaSession = useAuthStore((state) => state.clearPendingMfaSession);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      otp: "",
+    },
+    mode: "onBlur",
+  });
+
+  const verifyMutation = useMutation({
+    mutationFn: async ({ mfaToken, otp }) => {
+      const response = await apiClient.post(AUTH_MFA_VERIFY, null, {
+        params: {
+          otp,
+        },
+        headers: {
+          Authorization: `Bearer ${mfaToken}`,
+        },
+      });
+
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setSession({
+        accessToken:
+          data.access_token ||
+          data.token ||
+          data.accessToken ||
+          pendingMfaSession.mfaToken,
+        refreshToken: data.refresh_token || data.refreshToken || null,
+        expiresIn: data.expires_in || data.expiresIn || null,
+        role: data.user_role || pendingMfaSession.role,
+        email: pendingMfaSession.email,
+        mfaVerified: true,
+      });
+      clearPendingMfaSession();
+      toast.success("MFA verified. Admin session is now active.");
+      navigate("/admin/dashboard", { replace: true });
+    },
+    onError: (error) => {
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.detail ||
+        "OTP verification failed. Please try again.";
+
+      toast.error(message);
+    },
+  });
+
+  if (!pendingMfaSession?.mfaToken) {
+    return <Navigate to="/admin/auth" replace />;
+  }
+
+  const onSubmit = handleSubmit((values) => {
+    verifyMutation.mutate({
+      mfaToken: pendingMfaSession.mfaToken,
+      otp: values.otp,
+    });
+  });
+
+  function handleCancel() {
+    clearPendingMfaSession();
+    navigate("/admin/auth", { replace: true });
+  }
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,_#f6f6ff_0%,_#eef3ef_100%)] px-6 py-10">
+      <section className="w-full max-w-xl rounded-[32px] border border-brand-line bg-white p-7 shadow-[0_24px_80px_rgba(68,83,74,0.12)] sm:p-8">
+        <div className="inline-flex items-center gap-2 rounded-full border border-brand-line bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-brand-secondary">
+          <ShieldCheck className="size-3.5 text-brand-primary" />
+          OTP Verify
+        </div>
+
+        <div className="mt-5 flex items-start justify-between gap-4">
+          <div className="space-y-3">
+            <h1 className="text-3xl font-semibold tracking-tight text-brand-ink">
+              Enter the one-time password.
+            </h1>
+            <p className="text-sm leading-7 text-brand-secondary">
+              This step sends the OTP to <code>/auth/mfa/verify</code> using the
+              temporary login token from the previous step.
+            </p>
+          </div>
+
+          <div className="flex size-14 shrink-0 items-center justify-center rounded-3xl bg-brand-tertiary text-white shadow-lg shadow-brand-tertiary/20">
+            <KeyRound className="size-6" />
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-[28px] border border-brand-line bg-brand-neutral p-5">
+          <p className="text-sm text-brand-secondary">Verifying session for</p>
+          <p className="mt-2 text-lg font-semibold text-brand-ink">
+            {pendingMfaSession.email}
+          </p>
+        </div>
+
+        <form className="mt-8 space-y-5" onSubmit={onSubmit}>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-brand-ink" htmlFor="admin-otp">
+              OTP code
+            </label>
+            <Input
+              id="admin-otp"
+              type="text"
+              inputMode="numeric"
+              placeholder="Enter 6-digit OTP"
+              className="h-12 rounded-2xl border-brand-line bg-white px-4 text-sm text-brand-ink placeholder:text-brand-secondary/70 focus-visible:border-brand-primary focus-visible:ring-brand-primary/[0.15]"
+              aria-invalid={Boolean(errors.otp)}
+              {...register("otp", {
+                required: "OTP is required",
+                minLength: {
+                  value: 4,
+                  message: "OTP looks too short",
+                },
+              })}
+            />
+            {errors.otp ? (
+              <p className="text-sm text-rose-600">{errors.otp.message}</p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button
+              type="submit"
+              className="h-12 rounded-2xl bg-brand-primary px-5 text-white hover:bg-brand-primary/90"
+              disabled={verifyMutation.isPending}
+            >
+              {verifyMutation.isPending ? (
+                <>
+                  <LoaderCircle className="size-4 animate-spin" />
+                  Verifying
+                </>
+              ) : (
+                "Verify OTP"
+              )}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="h-12 rounded-2xl border-brand-line bg-white px-5 text-brand-ink hover:bg-brand-soft"
+              onClick={() => navigate("/admin/mfa/setup")}
+            >
+              Back to setup
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-12 rounded-2xl text-brand-secondary hover:bg-brand-soft hover:text-brand-ink"
+              onClick={handleCancel}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </section>
+    </main>
+  );
+}

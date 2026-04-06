@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { LoaderCircle, LockKeyhole, ShieldCheck } from "lucide-react";
+import { ArrowRight, LockKeyhole, ShieldCheck } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -15,9 +15,10 @@ const defaultValues = {
   password: "",
 };
 
-export function SuperAdminLoginForm() {
+export function AdminLoginForm() {
   const navigate = useNavigate();
   const setSession = useAuthStore((state) => state.setSession);
+  const setPendingMfaSession = useAuthStore((state) => state.setPendingMfaSession);
 
   const {
     register,
@@ -40,22 +41,35 @@ export function SuperAdminLoginForm() {
       return response.data;
     },
     onSuccess: (data, variables) => {
-      setSession({
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        expiresIn: data.expires_in,
+      if (data.user_role === "SUPER_ADMIN") {
+        setSession({
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token,
+          expiresIn: data.expires_in,
+          role: data.user_role,
+          email: variables.email,
+        });
+
+        toast.success("Super admin detected. Redirecting to the super admin portal.");
+        navigate("/super-admin/dashboard", { replace: true });
+        return;
+      }
+
+      setPendingMfaSession({
+        mfaToken: data.mfa_token,
+        mfaSetupRequired: Boolean(data.mfa_setup_required),
         role: data.user_role,
         email: variables.email,
       });
 
-      toast.success("Super admin signed in successfully.");
-      navigate("/super-admin/dashboard", { replace: true });
+      toast.success("Credentials accepted. Continue with MFA setup.");
+      navigate("/admin/mfa/setup", { replace: true });
     },
     onError: (error) => {
       const message =
         error?.response?.data?.message ||
         error?.response?.data?.detail ||
-        "Unable to sign in right now. Check backend connectivity and try again.";
+        "Unable to sign in right now. Please check your credentials.";
 
       toast.error(message);
     },
@@ -66,20 +80,20 @@ export function SuperAdminLoginForm() {
   });
 
   return (
-    <div className="w-full max-w-md rounded-[28px] border border-white/70 bg-white/[0.88] p-6 shadow-[0_24px_80px_rgba(68,83,74,0.14)] backdrop-blur xl:p-8">
+    <div className="w-full max-w-md rounded-[28px] border border-white/70 bg-white/[0.9] p-6 shadow-[0_24px_80px_rgba(68,83,74,0.14)] backdrop-blur xl:p-8">
       <div className="mb-8 flex items-start justify-between gap-4">
         <div className="space-y-3">
           <span className="inline-flex items-center gap-2 rounded-full border border-brand-line bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-brand-secondary">
             <ShieldCheck className="size-3.5" />
-            Platform Access
+            Admin Access
           </span>
           <div className="space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight text-brand-ink">
-              Super admin sign in
+              Admin sign in
             </h1>
             <p className="text-sm leading-6 text-brand-secondary">
-              Secure entry point for platform ownership, company provisioning,
-              and global controls.
+              Login with email and password first, then continue through MFA for
+              trusted device verification.
             </p>
           </div>
         </div>
@@ -91,16 +105,13 @@ export function SuperAdminLoginForm() {
 
       <form className="space-y-5" onSubmit={onSubmit}>
         <div className="space-y-2">
-          <label
-            className="text-sm font-medium text-brand-ink"
-            htmlFor="super-admin-email"
-          >
-            Work email
+          <label className="text-sm font-medium text-brand-ink" htmlFor="admin-email">
+            Email
           </label>
           <Input
-            id="super-admin-email"
+            id="admin-email"
             type="email"
-            placeholder="owner@conectio.app"
+            placeholder="admin@company.com"
             autoComplete="email"
             className="h-12 rounded-2xl border-brand-line bg-white px-4 text-sm text-brand-ink placeholder:text-brand-secondary/70 focus-visible:border-brand-primary focus-visible:ring-brand-primary/[0.15]"
             aria-invalid={Boolean(errors.email)}
@@ -118,22 +129,11 @@ export function SuperAdminLoginForm() {
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <label
-              className="text-sm font-medium text-brand-ink"
-              htmlFor="super-admin-password"
-            >
-              Password
-            </label>
-            <button
-              type="button"
-              className="text-sm font-medium text-brand-secondary transition hover:text-brand-ink"
-            >
-              Forgot password?
-            </button>
-          </div>
+          <label className="text-sm font-medium text-brand-ink" htmlFor="admin-password">
+            Password
+          </label>
           <Input
-            id="super-admin-password"
+            id="admin-password"
             type="password"
             placeholder="Enter your password"
             autoComplete="current-password"
@@ -158,24 +158,17 @@ export function SuperAdminLoginForm() {
           className="h-12 w-full rounded-2xl bg-brand-primary text-sm font-semibold text-white hover:bg-brand-primary/90"
           disabled={loginMutation.isPending}
         >
-          {loginMutation.isPending ? (
-            <>
-              <LoaderCircle className="size-4 animate-spin" />
-              Signing in
-            </>
-          ) : (
-            "Continue to control center"
-          )}
+          {loginMutation.isPending ? "Signing in" : "Continue to MFA"}
+          <ArrowRight className="size-4" />
         </Button>
       </form>
 
       <div className="mt-6 rounded-2xl border border-brand-line bg-brand-neutral p-4 text-sm text-brand-secondary">
-        Live backend contract: this form posts to
-        <code className="ml-1 rounded bg-white px-1.5 py-0.5 text-xs text-brand-ink">
-          /auth/login?email=...&password=...
+        Admin and user login receive a temporary
+        <code className="mx-1 rounded bg-white px-1.5 py-0.5 text-xs text-brand-ink">
+          mfa_token
         </code>
-        and stores the returned auth tokens in Zustand for the next protected
-        screens.
+        first, then complete setup and OTP verification.
       </div>
     </div>
   );
