@@ -56,25 +56,25 @@ export function SuperAdminLoginForm() {
   });
 
   return (
-    <div className="w-full max-w-md rounded-[28px] border border-white/60 bg-white/80 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.14)] backdrop-blur xl:p-8">
+    <div className="w-full max-w-md rounded-[28px] border border-white/70 bg-white/[0.88] p-6 shadow-[0_24px_80px_rgba(68,83,74,0.14)] backdrop-blur xl:p-8">
       <div className="mb-8 flex items-start justify-between gap-4">
         <div className="space-y-3">
-          <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-slate-600">
+          <span className="inline-flex items-center gap-2 rounded-full border border-brand-line bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-brand-secondary">
             <ShieldCheck className="size-3.5" />
             Platform Access
           </span>
           <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
+            <h1 className="text-3xl font-semibold tracking-tight text-brand-ink">
               Super admin sign in
             </h1>
-            <p className="text-sm leading-6 text-slate-600">
+            <p className="text-sm leading-6 text-brand-secondary">
               Secure entry point for platform ownership, company provisioning,
               and global controls.
             </p>
           </div>
         </div>
 
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-950/20">
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-brand-primary text-white shadow-lg shadow-brand-primary/20">
           <LockKeyhole className="size-5" />
         </div>
       </div>
@@ -82,7 +82,7 @@ export function SuperAdminLoginForm() {
       <form className="space-y-5" onSubmit={onSubmit}>
         <div className="space-y-2">
           <label
-            className="text-sm font-medium text-slate-800"
+            className="text-sm font-medium text-brand-ink"
             htmlFor="super-admin-email"
           >
             Work email
@@ -92,7 +92,7 @@ export function SuperAdminLoginForm() {
             type="email"
             placeholder="owner@conectio.app"
             autoComplete="email"
-            className="h-12 rounded-2xl border-slate-200 bg-white px-4 text-sm text-slate-950 placeholder:text-slate-400 focus-visible:border-slate-400 focus-visible:ring-slate-200"
+            className="h-12 rounded-2xl border-brand-line bg-white px-4 text-sm text-brand-ink placeholder:text-brand-secondary/70 focus-visible:border-brand-primary focus-visible:ring-brand-primary/[0.15]"
             aria-invalid={Boolean(errors.email)}
             {...register("email", {
               required: "Email is required",
@@ -110,14 +110,14 @@ export function SuperAdminLoginForm() {
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
             <label
-              className="text-sm font-medium text-slate-800"
+              className="text-sm font-medium text-brand-ink"
               htmlFor="super-admin-password"
             >
               Password
             </label>
             <button
               type="button"
-              className="text-sm font-medium text-slate-500 transition hover:text-slate-900"
+              className="text-sm font-medium text-brand-secondary transition hover:text-brand-ink"
             >
               Forgot password?
             </button>
@@ -127,7 +127,7 @@ export function SuperAdminLoginForm() {
             type="password"
             placeholder="Enter your password"
             autoComplete="current-password"
-            className="h-12 rounded-2xl border-slate-200 bg-white px-4 text-sm text-slate-950 placeholder:text-slate-400 focus-visible:border-slate-400 focus-visible:ring-slate-200"
+            className="h-12 rounded-2xl border-brand-line bg-white px-4 text-sm text-brand-ink placeholder:text-brand-secondary/70 focus-visible:border-brand-primary focus-visible:ring-brand-primary/[0.15]"
             aria-invalid={Boolean(errors.password)}
             {...register("password", {
               required: "Password is required",
@@ -145,7 +145,7 @@ export function SuperAdminLoginForm() {
         <Button
           type="submit"
           size="lg"
-          className="h-12 w-full rounded-2xl bg-slate-950 text-sm font-semibold text-white hover:bg-slate-800"
+          className="h-12 w-full rounded-2xl bg-brand-primary text-sm font-semibold text-white hover:bg-brand-primary/90"
           disabled={loginMutation.isPending}
         >
           {loginMutation.isPending ? (
@@ -159,9 +159,9 @@ export function SuperAdminLoginForm() {
         </Button>
       </form>
 
-      <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+      <div className="mt-6 rounded-2xl border border-brand-line bg-brand-neutral p-4 text-sm text-brand-secondary">
         Live backend contract: this form posts to
-        <code className="ml-1 rounded bg-white px-1.5 py-0.5 text-xs text-slate-900">
+        <code className="ml-1 rounded bg-white px-1.5 py-0.5 text-xs text-brand-ink">
           /auth/login?email=...&password=...
         </code>
         and stores the returned auth tokens in Zustand for the next protected

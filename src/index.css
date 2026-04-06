@@ -14,9 +14,17 @@ body,
 }
 
 :root {
+  --levitica-primary: #006947;
+  --levitica-secondary: #5f7e6c;
+  --levitica-tertiary: #914440;
+  --levitica-neutral: #f6f6ff;
+  --levitica-ink: #44534a;
+  --levitica-soft: #edf1ee;
+  --levitica-line: #d7ddd8;
+
   font-family: "Geist Variable", "Segoe UI", sans-serif;
-  color: oklch(0.24 0.03 257);
-  background-color: oklch(0.98 0.01 247);
+  color: #44534a;
+  background-color: #f6f6ff;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -31,25 +39,25 @@ body,
 
 @layer base {
   :root {
-    --background: 0.98 0.01 247;
-    --foreground: 0.21 0.03 257;
-    --card: 1 0 0;
-    --card-foreground: 0.21 0.03 257;
-    --popover: 1 0 0;
-    --popover-foreground: 0.21 0.03 257;
-    --primary: 0.24 0.03 257;
-    --primary-foreground: 0.99 0 0;
-    --secondary: 0.95 0.01 247;
-    --secondary-foreground: 0.24 0.03 257;
-    --muted: 0.95 0.01 247;
-    --muted-foreground: 0.48 0.03 257;
-    --accent: 0.93 0.03 242;
-    --accent-foreground: 0.24 0.03 257;
-    --destructive: 0.62 0.22 26;
-    --destructive-foreground: 0.99 0 0;
-    --border: 0.9 0.01 247;
-    --input: 0.92 0.01 247;
-    --ring: 0.69 0.05 245;
+    --background: 240 100% 99%;
+    --foreground: 137 10% 30%;
+    --card: 0 0% 100%;
+    --card-foreground: 137 10% 30%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 137 10% 30%;
+    --primary: 160 100% 21%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 135 14% 43%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 135 14% 93%;
+    --muted-foreground: 137 10% 40%;
+    --accent: 8 39% 41%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 8 67% 47%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 135 13% 86%;
+    --input: 135 13% 86%;
+    --ring: 160 100% 21%;
     --radius: 1rem;
   }
 

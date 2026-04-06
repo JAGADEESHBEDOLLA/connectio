@@ -7,36 +7,46 @@ export default {
   theme: {
     extend: {
       colors: {
-        border: "hsl(240 5.9% 90%)",
-        input: "hsl(240 5.9% 90%)",
-        ring: "hsl(240 5% 64.9%)",
+        border: "hsl(var(--border) / <alpha-value>)",
+        input: "hsl(var(--input) / <alpha-value>)",
+        ring: "hsl(var(--ring) / <alpha-value>)",
 
-        background: "hsl(0 0% 100%)",
-        foreground: "hsl(240 10% 3.9%)",
+        background: "hsl(var(--background) / <alpha-value>)",
+        foreground: "hsl(var(--foreground) / <alpha-value>)",
 
         primary: {
-          DEFAULT: "hsl(240 5.9% 10%)",
-          foreground: "hsl(0 0% 98%)",
+          DEFAULT: "hsl(var(--primary) / <alpha-value>)",
+          foreground: "hsl(var(--primary-foreground) / <alpha-value>)",
         },
 
         secondary: {
-          DEFAULT: "hsl(240 4.8% 95.9%)",
-          foreground: "hsl(240 5.9% 10%)",
+          DEFAULT: "hsl(var(--secondary) / <alpha-value>)",
+          foreground: "hsl(var(--secondary-foreground) / <alpha-value>)",
         },
 
         muted: {
-          DEFAULT: "hsl(240 4.8% 95.9%)",
-          foreground: "hsl(240 3.8% 46.1%)",
+          DEFAULT: "hsl(var(--muted) / <alpha-value>)",
+          foreground: "hsl(var(--muted-foreground) / <alpha-value>)",
         },
 
         accent: {
-          DEFAULT: "hsl(240 4.8% 95.9%)",
-          foreground: "hsl(240 5.9% 10%)",
+          DEFAULT: "hsl(var(--accent) / <alpha-value>)",
+          foreground: "hsl(var(--accent-foreground) / <alpha-value>)",
         },
 
         destructive: {
-          DEFAULT: "hsl(0 84.2% 60.2%)",
-          foreground: "hsl(0 0% 98%)",
+          DEFAULT: "hsl(var(--destructive) / <alpha-value>)",
+          foreground: "hsl(var(--destructive-foreground) / <alpha-value>)",
+        },
+
+        brand: {
+          primary: "#006947",
+          secondary: "#5F7E6C",
+          tertiary: "#914440",
+          neutral: "#F6F6FF",
+          ink: "#44534A",
+          soft: "#EDF1EE",
+          line: "#D7DDD8",
         },
       },
       borderRadius: {
