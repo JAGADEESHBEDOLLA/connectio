@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { Navigate, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-import { AUTH_MFA_VERIFY } from "@/config/api";
+import { AUTH_LOGIN_MFA, AUTH_MFA_VERIFY } from "@/config/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/client";
@@ -15,6 +15,7 @@ export function AdminMfaVerifyPage() {
   const pendingMfaSession = useAuthStore((state) => state.pendingMfaSession);
   const setSession = useAuthStore((state) => state.setSession);
   const clearPendingMfaSession = useAuthStore((state) => state.clearPendingMfaSession);
+  const isSetupVerification = Boolean(pendingMfaSession?.mfaSetupRequired);
 
   const {
     register,
@@ -28,19 +29,37 @@ export function AdminMfaVerifyPage() {
   });
 
   const verifyMutation = useMutation({
-    mutationFn: async ({ mfaToken, otp }) => {
-      const response = await apiClient.post(AUTH_MFA_VERIFY, null, {
+    mutationFn: async ({ mfaToken, userId, otp }) => {
+      if (isSetupVerification) {
+        const response = await apiClient.post(AUTH_MFA_VERIFY, null, {
+          params: {
+            otp,
+          },
+          headers: {
+            Authorization: `Bearer ${mfaToken}`,
+          },
+        });
+
+        return response.data;
+      }
+
+      const response = await apiClient.post(AUTH_LOGIN_MFA, null, {
         params: {
+          user_id: userId,
           otp,
-        },
-        headers: {
-          Authorization: `Bearer ${mfaToken}`,
         },
       });
 
       return response.data;
     },
     onSuccess: (data) => {
+      if (isSetupVerification) {
+        toast.success("MFA setup verified. Please sign in again to continue.");
+        clearPendingMfaSession();
+        navigate("/admin/auth", { replace: true });
+        return;
+      }
+
       setSession({
         accessToken:
           data.access_token ||
@@ -54,26 +73,29 @@ export function AdminMfaVerifyPage() {
         mfaVerified: true,
       });
       clearPendingMfaSession();
-      toast.success("MFA verified. Admin session is now active.");
+      toast.success("OTP login verified. Admin session is now active.");
       navigate("/admin/dashboard", { replace: true });
     },
     onError: (error) => {
       const message =
         error?.response?.data?.message ||
         error?.response?.data?.detail ||
-        "OTP verification failed. Please try again.";
+        isSetupVerification
+          ? "MFA setup verification failed. Please try again."
+          : "OTP login verification failed. Please try again.";
 
       toast.error(message);
     },
   });
 
-  if (!pendingMfaSession?.mfaToken) {
+  if (!pendingMfaSession?.mfaToken && !pendingMfaSession?.userId) {
     return <Navigate to="/admin/auth" replace />;
   }
 
   const onSubmit = handleSubmit((values) => {
     verifyMutation.mutate({
       mfaToken: pendingMfaSession.mfaToken,
+      userId: pendingMfaSession.userId,
       otp: values.otp,
     });
   });
@@ -94,11 +116,22 @@ export function AdminMfaVerifyPage() {
         <div className="mt-5 flex items-start justify-between gap-4">
           <div className="space-y-3">
             <h1 className="text-3xl font-semibold tracking-tight text-brand-ink">
-              Enter the one-time password.
+              {isSetupVerification
+                ? "Verify the authenticator setup."
+                : "Enter the one-time password."}
             </h1>
             <p className="text-sm leading-7 text-brand-secondary">
-              This step sends the OTP to <code>/auth/mfa/verify</code> using the
-              temporary login token from the previous step.
+              {isSetupVerification ? (
+                <>
+                  This step sends the OTP to <code>/auth/mfa/verify</code> using the
+                  temporary MFA token from setup.
+                </>
+              ) : (
+                <>
+                  This step sends the OTP to <code>/auth/login/mfa</code> using the
+                  <code className="mx-1">user_id</code> returned by login.
+                </>
+              )}
             </p>
           </div>
 
@@ -108,10 +141,17 @@ export function AdminMfaVerifyPage() {
         </div>
 
         <div className="mt-6 rounded-[28px] border border-brand-line bg-brand-neutral p-5">
-          <p className="text-sm text-brand-secondary">Verifying session for</p>
+          <p className="text-sm text-brand-secondary">
+            {isSetupVerification ? "Verifying setup for" : "Verifying login for"}
+          </p>
           <p className="mt-2 text-lg font-semibold text-brand-ink">
             {pendingMfaSession.email}
           </p>
+          {!isSetupVerification && pendingMfaSession.userId ? (
+            <p className="mt-2 text-sm text-brand-secondary">
+              user_id: {pendingMfaSession.userId}
+            </p>
+          ) : null}
         </div>
 
         <form className="mt-8 space-y-5" onSubmit={onSubmit}>
@@ -148,10 +188,10 @@ export function AdminMfaVerifyPage() {
               {verifyMutation.isPending ? (
                 <>
                   <LoaderCircle className="size-4 animate-spin" />
-                  Verifying
+                  {isSetupVerification ? "Verifying setup" : "Verifying login"}
                 </>
               ) : (
-                "Verify OTP"
+                isSetupVerification ? "Verify setup OTP" : "Verify login OTP"
               )}
             </Button>
 
@@ -159,9 +199,11 @@ export function AdminMfaVerifyPage() {
               type="button"
               variant="outline"
               className="h-12 rounded-2xl border-brand-line bg-white px-5 text-brand-ink hover:bg-brand-soft"
-              onClick={() => navigate("/admin/mfa/setup")}
+              onClick={() =>
+                navigate(isSetupVerification ? "/admin/mfa/setup" : "/admin/auth")
+              }
             >
-              Back to setup
+              {isSetupVerification ? "Back to setup" : "Back to login"}
             </Button>
 
             <Button

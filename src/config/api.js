@@ -1,4 +1,5 @@
 export const AUTH_LOGIN = "/auth/login";
+export const AUTH_LOGIN_MFA = "/auth/login/mfa";
 export const AUTH_MFA_SETUP = "/auth/mfa/setup";
 export const AUTH_MFA_VERIFY = "/auth/mfa/verify";
 

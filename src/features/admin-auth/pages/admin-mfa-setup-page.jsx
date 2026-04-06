@@ -146,7 +146,7 @@ export function AdminMfaSetupPage() {
                 <div className="mt-4 space-y-3 text-sm leading-6 text-brand-ink">
                   <p>1. Scan the QR code with your authenticator app.</p>
                   <p>2. Enter the generated OTP on the next screen.</p>
-                  <p>3. We’ll validate it through <code>/auth/mfa/verify</code>.</p>
+                  <p>3. We’ll verify setup through <code>/auth/mfa/verify</code>.</p>
                 </div>
               </div>
 
@@ -196,7 +196,7 @@ export function AdminMfaSetupPage() {
             className="h-12 rounded-2xl border-brand-line bg-white px-5 text-brand-ink hover:bg-brand-soft"
             onClick={() => navigate("/admin/mfa/verify")}
           >
-            Continue to OTP verify
+            Continue to setup verification
           </Button>
 
           <Button

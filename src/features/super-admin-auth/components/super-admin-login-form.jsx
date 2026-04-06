@@ -18,6 +18,8 @@ const defaultValues = {
 export function SuperAdminLoginForm() {
   const navigate = useNavigate();
   const setSession = useAuthStore((state) => state.setSession);
+  const setPendingMfaSession = useAuthStore((state) => state.setPendingMfaSession);
+  const clearSession = useAuthStore((state) => state.clearSession);
 
   const {
     register,
@@ -40,6 +42,27 @@ export function SuperAdminLoginForm() {
       return response.data;
     },
     onSuccess: (data, variables) => {
+      if (data.user_role !== "SUPER_ADMIN") {
+        clearSession();
+
+        if (data.mfa_token) {
+          setPendingMfaSession({
+            mfaToken: data.mfa_token,
+            mfaSetupRequired: Boolean(data.mfa_setup_required),
+            role: data.user_role,
+            email: variables.email,
+          });
+
+          toast.error("This account is not a super admin. Redirecting to admin MFA flow.");
+          navigate("/admin/mfa/setup", { replace: true });
+          return;
+        }
+
+        toast.error("This account is not a super admin. Please use the admin login page.");
+        navigate("/admin/auth", { replace: true });
+        return;
+      }
+
       setSession({
         accessToken: data.access_token,
         refreshToken: data.refresh_token,

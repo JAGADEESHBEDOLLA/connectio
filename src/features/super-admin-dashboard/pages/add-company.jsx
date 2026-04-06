@@ -1,28 +1,23 @@
-import { zodResolver } from "@hookform/resolvers/zod";
 import { Building2, Globe, ArrowLeft } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
-import * as z from "zod";
+import { toast } from "sonner";
 
+import { SUPERADMIN_CREATE_COMPANY } from "@/config/api";
 import { Button } from "@/components/ui/button";
+import { apiClient } from "@/lib/client";
+import { useAuthStore } from "@/store/auth-store";
 import { SuperAdminLayout } from "../components/super-admin-layout";
 
-const companySchema = z.object({
-  name: z.string().min(2, "Company name must be at least 2 characters."),
-  domain: z.string().min(3, "Domain must be at least 3 characters.").refine((val) => {
-    return /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/.test(val);
-  }, "Please enter a valid domain (e.g., example.com)"),
-});
-
-export function CreateCompanyPage() {
+export function AddCompanyPage() {
   const navigate = useNavigate();
+  const session = useAuthStore((state) => state.session);
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm({
-    resolver: zodResolver(companySchema),
     defaultValues: {
       name: "",
       domain: "",
@@ -30,10 +25,34 @@ export function CreateCompanyPage() {
   });
 
   const onSubmit = async (data) => {
-    // In a real app, this would be an API call
-    console.log("Creating company:", data);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    navigate("/super-admin/dashboard");
+    try {
+      const normalizedDomain = data.domain.trim().replace(/^@+/, "");
+
+      const response = await apiClient.post(SUPERADMIN_CREATE_COMPANY, null, {
+        params: {
+          name: data.name.trim(),
+          domain: normalizedDomain,
+        },
+        headers: {
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+      });
+
+      toast.success(response.data?.message || "Company created successfully.");
+      navigate("/super-admin/dashboard", {
+        replace: true,
+        state: {
+          createdCompany: response.data,
+        },
+      });
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.detail ||
+        "Unable to create the company right now.";
+
+      toast.error(message);
+    }
   };
 
   return (
@@ -72,7 +91,13 @@ export function CreateCompanyPage() {
                 <div className="relative">
                   <input
                     id="name"
-                    {...register("name")}
+                    {...register("name", {
+                      required: "Company name is required.",
+                      minLength: {
+                        value: 2,
+                        message: "Company name must be at least 2 characters.",
+                      },
+                    })}
                     placeholder="e.g. Acme Corp"
                     className={`h-12 w-full rounded-2xl border bg-brand-neutral px-4 text-sm transition focus:outline-none focus:ring-2 ${
                       errors.name
@@ -100,7 +125,17 @@ export function CreateCompanyPage() {
                 <div className="relative">
                   <input
                     id="domain"
-                    {...register("domain")}
+                    {...register("domain", {
+                      required: "Domain is required.",
+                      minLength: {
+                        value: 3,
+                        message: "Domain must be at least 3 characters.",
+                      },
+                      pattern: {
+                        value: /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/,
+                        message: "Please enter a valid domain (e.g., example.com)",
+                      },
+                    })}
                     placeholder="e.g. acme.com"
                     className={`h-12 w-full rounded-2xl border bg-brand-neutral px-4 text-sm transition focus:outline-none focus:ring-2 ${
                       errors.domain
@@ -115,7 +150,8 @@ export function CreateCompanyPage() {
                   )}
                 </div>
                 <p className="text-[11px] text-brand-secondary/70">
-                  Must be a unique top-level domain for the company's workspace.
+                  Use the company workspace domain like `pexpo.com`. We will send it
+                  to the backend without a leading `@`.
                 </p>
               </div>
             </div>

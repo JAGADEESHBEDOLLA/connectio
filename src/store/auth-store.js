@@ -7,7 +7,13 @@ export const useAuthStore = create(
       session: null,
       pendingMfaSession: null,
       setSession: (session) => set({ session }),
-      setPendingMfaSession: (pendingMfaSession) => set({ pendingMfaSession }),
+      setPendingMfaSession: (pendingMfaSession) =>
+        set((state) => ({
+          pendingMfaSession: {
+            ...state.pendingMfaSession,
+            ...pendingMfaSession,
+          },
+        })),
       clearPendingMfaSession: () => set({ pendingMfaSession: null }),
       clearSession: () => set({ session: null, pendingMfaSession: null }),
     }),

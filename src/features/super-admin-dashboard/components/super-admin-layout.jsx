@@ -36,7 +36,7 @@ export function SuperAdminLayout({ children }) {
         { label: "Overview", icon: LayoutGrid, path: "/super-admin/dashboard" },
         { label: "Add Company", icon: Plus, path: "/super-admin/dashboard/companies/create" },
         { label: "Add Company Admin", icon: UserRoundCog, path: "/super-admin/dashboard/admins/create" },
-        { label: "Companies", icon: Building2, path: "/super-admin/dashboard/companies" },
+        { label: "All Companies", icon: Building2, path: "/super-admin/dashboard/companies" },
         { label: "Company Admins", icon: UserRoundCog, path: "/super-admin/dashboard/admins" },
         { label: "Approvals", icon: Users, path: "/super-admin/dashboard/approvals" },
       ],

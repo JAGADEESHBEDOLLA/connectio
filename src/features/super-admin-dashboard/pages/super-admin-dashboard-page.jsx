@@ -177,6 +177,27 @@ export function SuperAdminDashboardPage() {
               </button>
             ))}
           </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 rounded-2xl border-brand-line bg-white px-5 text-brand-ink hover:bg-brand-soft"
+              onClick={() => navigate("/super-admin/dashboard/companies")}
+            >
+              <Building2 className="size-4" />
+              All companies
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 rounded-2xl border-brand-line bg-white px-5 text-brand-ink hover:bg-brand-soft"
+              onClick={() => navigate("/auth/activate")}
+            >
+              <UserRoundCog className="size-4" />
+              Open activation page
+            </Button>
+          </div>
         </section>
 
         <section className="rounded-[32px] border border-brand-line bg-brand-tertiary p-6 text-white shadow-[0_16px_50px_rgba(145,68,64,0.18)]">

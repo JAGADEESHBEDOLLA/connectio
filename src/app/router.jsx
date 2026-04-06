@@ -1,6 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { AddCompanyAdminPage } from "@/features/super-admin-dashboard/pages/add-company-admin-page";
-import { CreateCompanyPage } from "@/features/super-admin-dashboard/pages/create-company-page";
+import { AddAdminPage } from "@/features/super-admin-dashboard/pages/add-admin";
+import { AddCompanyPage } from "@/features/super-admin-dashboard/pages/add-company";
+import { ActivateAdminPage } from "@/features/super-admin-dashboard/pages/activate-admin";
+import { CompaniesPage } from "@/features/super-admin-dashboard/pages/companies";
 import { AdminDashboardPage } from "@/features/admin-dashboard/pages/admin-dashboard-page";
 import { AdminLoginPage } from "@/features/admin-auth/pages/admin-login-page";
 import { AdminMfaSetupPage } from "@/features/admin-auth/pages/admin-mfa-setup-page";
@@ -32,7 +34,7 @@ function ProtectedAdminRoute({ children }) {
 function PendingMfaRoute({ children }) {
   const pendingMfaSession = useAuthStore((state) => state.pendingMfaSession);
 
-  if (!pendingMfaSession?.accessToken) {
+  if (!pendingMfaSession?.mfaToken && !pendingMfaSession?.userId) {
     return <Navigate to="/admin/auth" replace />;
   }
 
@@ -70,6 +72,7 @@ export function AppRouter() {
           }
         />
         <Route path="/super-admin/auth" element={<SuperAdminAuthPage />} />
+        <Route path="/auth/activate" element={<ActivateAdminPage />} />
         <Route
           path="/super-admin/dashboard"
           element={
@@ -79,10 +82,18 @@ export function AppRouter() {
           }
         />
         <Route
+          path="/super-admin/dashboard/companies"
+          element={
+            <ProtectedSuperAdminRoute>
+              <CompaniesPage />
+            </ProtectedSuperAdminRoute>
+          }
+        />
+        <Route
           path="/super-admin/dashboard/companies/create"
           element={
             <ProtectedSuperAdminRoute>
-              <CreateCompanyPage />
+              <AddCompanyPage />
             </ProtectedSuperAdminRoute>
           }
         />
@@ -90,7 +101,7 @@ export function AppRouter() {
           path="/super-admin/dashboard/admins/create"
           element={
             <ProtectedSuperAdminRoute>
-              <AddCompanyAdminPage />
+              <AddAdminPage />
             </ProtectedSuperAdminRoute>
           }
         />

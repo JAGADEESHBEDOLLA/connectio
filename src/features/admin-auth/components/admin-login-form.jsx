@@ -55,15 +55,44 @@ export function AdminLoginForm() {
         return;
       }
 
+      if (data.access_token) {
+        setSession({
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token,
+          expiresIn: data.expires_in,
+          role: data.user_role,
+          email: variables.email,
+          mfaVerified: true,
+        });
+
+        toast.success("Admin signed in successfully.");
+        navigate("/admin/dashboard", { replace: true });
+        return;
+      }
+
+      const requiresSetup = Boolean(data.mfa_setup_required);
+
       setPendingMfaSession({
-        mfaToken: data.mfa_token,
-        mfaSetupRequired: Boolean(data.mfa_setup_required),
+        mfaToken: data.mfa_token || null,
+        userId: data.user_id || null,
+        mfaSetupRequired: requiresSetup,
         role: data.user_role,
         email: variables.email,
       });
 
-      toast.success("Credentials accepted. Continue with MFA setup.");
-      navigate("/admin/mfa/setup", { replace: true });
+      if (requiresSetup) {
+        toast.success("Credentials accepted. Continue with MFA setup.");
+        navigate("/admin/mfa/setup", { replace: true });
+        return;
+      }
+
+      if (data.user_id) {
+        toast.success("Credentials accepted. Continue with OTP login.");
+        navigate("/admin/mfa/verify", { replace: true });
+        return;
+      }
+
+      toast.error("Login response is missing the data needed to continue.");
     },
     onError: (error) => {
       const message =
@@ -92,8 +121,9 @@ export function AdminLoginForm() {
               Admin sign in
             </h1>
             <p className="text-sm leading-6 text-brand-secondary">
-              Login with email and password first, then continue through MFA for
-              trusted device verification.
+              Login with email and password. Trusted accounts can go straight in,
+              while protected accounts continue either through MFA setup or OTP
+              login verification.
             </p>
           </div>
         </div>
@@ -158,17 +188,19 @@ export function AdminLoginForm() {
           className="h-12 w-full rounded-2xl bg-brand-primary text-sm font-semibold text-white hover:bg-brand-primary/90"
           disabled={loginMutation.isPending}
         >
-          {loginMutation.isPending ? "Signing in" : "Continue to MFA"}
+          {loginMutation.isPending ? "Signing in" : "Continue"}
           <ArrowRight className="size-4" />
         </Button>
       </form>
 
       <div className="mt-6 rounded-2xl border border-brand-line bg-brand-neutral p-4 text-sm text-brand-secondary">
-        Admin and user login receive a temporary
+        Admin and user login may return either direct session tokens for trusted
+        access, a temporary
         <code className="mx-1 rounded bg-white px-1.5 py-0.5 text-xs text-brand-ink">
           mfa_token
         </code>
-        first, then complete setup and OTP verification.
+        for setup verification, or a <code className="mx-1 rounded bg-white px-1.5 py-0.5 text-xs text-brand-ink">user_id</code>
+        for login-time OTP verification.
       </div>
     </div>
   );
