@@ -1,0 +1,112 @@
+import { Route, Navigate } from "react-router-dom";
+import { AdminDashboardPage } from "./pages/admin-dashboard-page";
+import { AdminLoginPage } from "@/features/admin-auth/pages/admin-login-page";
+import { AdminMfaSetupPage } from "@/features/admin-auth/pages/admin-mfa-setup-page";
+import { AdminMfaVerifyPage } from "@/features/admin-auth/pages/admin-mfa-verify-page";
+import { useAuthStore } from "@/store/auth-store";
+
+function ProtectedAdminRoute({ children }) {
+  const session = useAuthStore((state) => state.session);
+
+  if (!session?.accessToken || session?.role === "SUPER_ADMIN") {
+    return <Navigate to="/admin/auth" replace />;
+  }
+
+  return children;
+}
+
+function PendingMfaRoute({ children }) {
+  const pendingMfaSession = useAuthStore((state) => state.pendingMfaSession);
+
+  if (!pendingMfaSession?.mfaToken && !pendingMfaSession?.userId) {
+    return <Navigate to="/admin/auth" replace />;
+  }
+
+  return children;
+}
+
+export const AdminRoutes = (
+  <>
+    <Route path="/admin/auth" element={<AdminLoginPage />} />
+    <Route
+      path="/admin/mfa/setup"
+      element={
+        <PendingMfaRoute>
+          <AdminMfaSetupPage />
+        </PendingMfaRoute>
+      }
+    />
+    <Route
+      path="/admin/mfa/verify"
+      element={
+        <PendingMfaRoute>
+          <AdminMfaVerifyPage />
+        </PendingMfaRoute>
+      }
+    />
+    <Route
+      path="/admin/dashboard"
+      element={
+        <ProtectedAdminRoute>
+          <AdminDashboardPage />
+        </ProtectedAdminRoute>
+      }
+    />
+    <Route
+      path="/admin/dashboard/users"
+      element={
+        <ProtectedAdminRoute>
+          <AdminDashboardPage />
+        </ProtectedAdminRoute>
+      }
+    />
+    <Route
+      path="/admin/dashboard/approvals"
+      element={
+        <ProtectedAdminRoute>
+          <AdminDashboardPage />
+        </ProtectedAdminRoute>
+      }
+    />
+    <Route
+      path="/admin/dashboard/invite"
+      element={
+        <ProtectedAdminRoute>
+          <AdminDashboardPage />
+        </ProtectedAdminRoute>
+      }
+    />
+    <Route
+      path="/admin/dashboard/channels"
+      element={
+        <ProtectedAdminRoute>
+          <AdminDashboardPage />
+        </ProtectedAdminRoute>
+      }
+    />
+    <Route
+      path="/admin/dashboard/teams"
+      element={
+        <ProtectedAdminRoute>
+          <AdminDashboardPage />
+        </ProtectedAdminRoute>
+      }
+    />
+    <Route
+      path="/admin/dashboard/meetings"
+      element={
+        <ProtectedAdminRoute>
+          <AdminDashboardPage />
+        </ProtectedAdminRoute>
+      }
+    />
+    <Route
+      path="/admin/dashboard/settings"
+      element={
+        <ProtectedAdminRoute>
+          <AdminDashboardPage />
+        </ProtectedAdminRoute>
+      }
+    />
+  </>
+);

@@ -1,0 +1,103 @@
+import { Route } from "react-router-dom";
+import { Navigate } from "react-router-dom";
+import { AddAdminPage } from "./pages/add-admin";
+import { AddCompanyPage } from "./pages/add-company";
+import { CompaniesPage } from "./pages/companies";
+import { CompanyAdminsPage } from "./pages/company-admins";
+import { SuperAdminDashboardPage } from "./pages/super-admin-dashboard-page";
+import { SendNotificationsPage } from "./pages/send-notifications-page";
+import { AnalyticsPage } from "./pages/analytics-page";
+import { SettingsPage } from "./pages/settings-page";
+import { BillingPage } from "./pages/billing";
+import { SuperAdminAuthPage } from "@/features/super-admin-auth/pages/super-admin-auth-page";
+import { ActivateAdminPage } from "./pages/activate-admin";
+import { useAuthStore } from "@/store/auth-store";
+
+function ProtectedSuperAdminRoute({ children }) {
+  const session = useAuthStore((state) => state.session);
+
+  if (!session?.accessToken) {
+    return <Navigate to="/super-admin/auth" replace />;
+  }
+
+  return children;
+}
+
+export const SuperAdminRoutes = (
+  <>
+    <Route path="/super-admin/auth" element={<SuperAdminAuthPage />} />
+    <Route path="/auth/activate" element={<ActivateAdminPage />} />
+    <Route
+      path="/super-admin/dashboard"
+      element={
+        <ProtectedSuperAdminRoute>
+          <SuperAdminDashboardPage />
+        </ProtectedSuperAdminRoute>
+      }
+    />
+    <Route
+      path="/super-admin/dashboard/companies"
+      element={
+        <ProtectedSuperAdminRoute>
+          <CompaniesPage />
+        </ProtectedSuperAdminRoute>
+      }
+    />
+    <Route
+      path="/super-admin/dashboard/companies/create"
+      element={
+        <ProtectedSuperAdminRoute>
+          <AddCompanyPage />
+        </ProtectedSuperAdminRoute>
+      }
+    />
+    <Route
+      path="/super-admin/dashboard/admins"
+      element={
+        <ProtectedSuperAdminRoute>
+          <CompanyAdminsPage />
+        </ProtectedSuperAdminRoute>
+      }
+    />
+    <Route
+      path="/super-admin/dashboard/admins/create"
+      element={
+        <ProtectedSuperAdminRoute>
+          <AddAdminPage />
+        </ProtectedSuperAdminRoute>
+      }
+    />
+    <Route
+      path="/super-admin/dashboard/billing"
+      element={
+        <ProtectedSuperAdminRoute>
+          <BillingPage />
+        </ProtectedSuperAdminRoute>
+      }
+    />
+    <Route
+      path="/super-admin/dashboard/notifications"
+      element={
+        <ProtectedSuperAdminRoute>
+          <SendNotificationsPage />
+        </ProtectedSuperAdminRoute>
+      }
+    />
+    <Route
+      path="/super-admin/dashboard/analytics"
+      element={
+        <ProtectedSuperAdminRoute>
+          <AnalyticsPage />
+        </ProtectedSuperAdminRoute>
+      }
+    />
+    <Route
+      path="/super-admin/dashboard/settings"
+      element={
+        <ProtectedSuperAdminRoute>
+          <SettingsPage />
+        </ProtectedSuperAdminRoute>
+      }
+    />
+  </>
+);
