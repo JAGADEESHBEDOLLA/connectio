@@ -1,7 +1,8 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { ChevronRight, Globe, ShieldEllipsis, TowerControl } from "lucide-react";
 
 import { SuperAdminLoginForm } from "@/features/super-admin-auth/components/super-admin-login-form";
+import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/auth-store";
 
 const trustPoints = [
@@ -12,6 +13,7 @@ const trustPoints = [
 
 export function SuperAdminAuthPage() {
   const session = useAuthStore((state) => state.session);
+  const navigate = useNavigate();
 
   if (session?.accessToken) {
     return <Navigate to="/super-admin/dashboard" replace />;
@@ -89,8 +91,16 @@ export function SuperAdminAuthPage() {
           </div>
         </section>
 
-        <section className="w-full max-w-lg">
+        <section className="w-full max-w-lg space-y-4">
           <SuperAdminLoginForm />
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-full rounded-2xl border-brand-line bg-white text-brand-ink hover:bg-brand-soft"
+            onClick={() => navigate("/admin/auth")}
+          >
+            Open admin login
+          </Button>
         </section>
       </div>
     </main>

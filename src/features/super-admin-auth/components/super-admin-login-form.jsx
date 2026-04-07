@@ -192,14 +192,14 @@ export function SuperAdminLoginForm() {
         </Button>
       </form>
 
-      <div className="mt-6 rounded-2xl border border-brand-line bg-brand-neutral p-4 text-sm text-brand-secondary">
+      {/* <div className="mt-6 rounded-2xl border border-brand-line bg-brand-neutral p-4 text-sm text-brand-secondary">
         Live backend contract: this form posts to
         <code className="ml-1 rounded bg-white px-1.5 py-0.5 text-xs text-brand-ink">
           /auth/login?email=...&password=...
         </code>
         and stores the returned auth tokens in Zustand for the next protected
         screens.
-      </div>
+      </div> */}
     </div>
   );
 }
