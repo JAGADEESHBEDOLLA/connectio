@@ -1,4 +1,4 @@
-import { Building2, CheckCircle2, ShieldCheck, Sparkles, UserRound } from "lucide-react";
+import { Building2, CheckCircle2, Mail, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -11,6 +11,8 @@ const defaultAdminForm = {
   name: "",
   companyName: "",
   companyDomain: "",
+  adminEmail: "",
+  phoneNumber: "",
 };
 
 const defaultUserForm = {
@@ -35,6 +37,10 @@ export function RegisterPage() {
   const [adminForm, setAdminForm] = useState(defaultAdminForm);
   const [userForm, setUserForm] = useState(defaultUserForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifyingDomain, setIsVerifyingDomain] = useState(false);
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [adminOtp, setAdminOtp] = useState("");
+  const [isDomainVerified, setIsDomainVerified] = useState(false);
 
   if (session?.accessToken) {
     if (session.role === "SUPER_ADMIN") {
@@ -54,6 +60,12 @@ export function RegisterPage() {
 
   function updateAdminField(field, value) {
     setAdminForm((current) => ({ ...current, [field]: value }));
+
+    if (field === "companyDomain" || field === "adminEmail") {
+      setIsDomainVerified(false);
+      setIsOtpSent(false);
+      setAdminOtp("");
+    }
   }
 
   function updateUserField(field, value) {
@@ -63,7 +75,13 @@ export function RegisterPage() {
   async function handleAdminSubmit(event) {
     event.preventDefault();
 
-    if (!adminForm.name.trim() || !adminForm.companyName.trim() || !adminForm.companyDomain.trim()) {
+    if (
+      !adminForm.name.trim() ||
+      !adminForm.companyName.trim() ||
+      !adminForm.companyDomain.trim() ||
+      !adminForm.adminEmail.trim() ||
+      !adminForm.phoneNumber.trim()
+    ) {
       toast.error("Complete all admin registration fields.");
       return;
     }
@@ -73,20 +91,73 @@ export function RegisterPage() {
       return;
     }
 
+    if (!isValidEmail(adminForm.adminEmail)) {
+      toast.error("Enter a valid admin email address.");
+      return;
+    }
+
+    if (!isDomainVerified) {
+      toast.error("Verify the domain before submitting the admin registration.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     const payload = {
       name: adminForm.name.trim(),
       company_name: adminForm.companyName.trim(),
       company_domain: adminForm.companyDomain.trim().toLowerCase().replace(/^@/, ""),
+      admin_email: adminForm.adminEmail.trim().toLowerCase(),
+      phone_number: adminForm.phoneNumber.trim(),
     };
 
     await new Promise((resolve) => window.setTimeout(resolve, 900));
 
     console.log("Admin registration payload queued for super admin:", payload);
-    toast.success("Admin registration request sent to super admin.");
+    toast.success("Your account will be activated soon.");
     setAdminForm(defaultAdminForm);
+    setIsDomainVerified(false);
+    setIsOtpSent(false);
+    setAdminOtp("");
     setIsSubmitting(false);
+  }
+
+  async function handleSendDomainOtp() {
+    if (!adminForm.companyDomain.trim() || !adminForm.adminEmail.trim()) {
+      toast.error("Enter the domain and admin email before verification.");
+      return;
+    }
+
+    if (!isValidDomain(adminForm.companyDomain)) {
+      toast.error("Enter a valid company domain like levitica.com");
+      return;
+    }
+
+    if (!isValidEmail(adminForm.adminEmail)) {
+      toast.error("Enter a valid admin email address.");
+      return;
+    }
+
+    setIsVerifyingDomain(true);
+    await new Promise((resolve) => window.setTimeout(resolve, 900));
+    setIsVerifyingDomain(false);
+    setIsOtpSent(true);
+    toast.success(`OTP sent to ${adminForm.adminEmail.trim().toLowerCase()}.`);
+  }
+
+  function handleVerifyAdminOtp() {
+    if (!adminOtp.trim()) {
+      toast.error("Enter the OTP sent to the admin email.");
+      return;
+    }
+
+    if (adminOtp.trim().length < 4) {
+      toast.error("Enter a valid OTP.");
+      return;
+    }
+
+    setIsDomainVerified(true);
+    toast.success("Verified domain.");
   }
 
   async function handleUserSubmit(event) {
@@ -238,22 +309,101 @@ export function RegisterPage() {
 
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-brand-ink">Company domain</label>
+                      <div className="flex flex-col gap-3 sm:flex-row">
+                        <Input
+                          value={adminForm.companyDomain}
+                          onChange={(event) => updateAdminField("companyDomain", event.target.value)}
+                          placeholder="Enter company domain"
+                          className="h-12 rounded-2xl border-brand-line bg-brand-neutral"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-12 rounded-2xl border-brand-line bg-white px-5 text-brand-ink hover:bg-brand-soft"
+                          disabled={isVerifyingDomain}
+                          onClick={handleSendDomainOtp}
+                        >
+                          {isVerifyingDomain ? "Sending OTP..." : "Verify domain"}
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-brand-ink">Admin email ID</label>
                       <Input
-                        value={adminForm.companyDomain}
-                        onChange={(event) => updateAdminField("companyDomain", event.target.value)}
-                        placeholder="Enter company domain"
+                        type="email"
+                        value={adminForm.adminEmail}
+                        onChange={(event) => updateAdminField("adminEmail", event.target.value)}
+                        placeholder="Enter admin email"
                         className="h-12 rounded-2xl border-brand-line bg-brand-neutral"
                       />
                     </div>
 
-                    <Button
-                      type="submit"
-                      size="lg"
-                      className="h-12 w-full rounded-2xl bg-brand-primary text-sm font-semibold text-white hover:bg-brand-primary/90"
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? "Submitting..." : "Submit admin registration"}
-                    </Button>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-brand-ink">Phone no</label>
+                      <Input
+                        value={adminForm.phoneNumber}
+                        onChange={(event) => updateAdminField("phoneNumber", event.target.value)}
+                        placeholder="Enter phone number"
+                        className="h-12 rounded-2xl border-brand-line bg-brand-neutral"
+                      />
+                    </div>
+
+                    {isOtpSent ? (
+                      <div className="space-y-3 rounded-[24px] border border-brand-line bg-brand-neutral p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="flex size-10 items-center justify-center rounded-2xl bg-brand-soft text-brand-primary">
+                            <Mail className="size-4.5" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-brand-ink">Domain verification OTP</p>
+                            <p className="mt-1 text-sm leading-6 text-brand-secondary">
+                              We sent an OTP to <span className="font-medium text-brand-ink">{adminForm.adminEmail}</span>. Enter it below to verify the domain.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-3 sm:flex-row">
+                          <Input
+                            value={adminOtp}
+                            onChange={(event) => setAdminOtp(event.target.value)}
+                            placeholder="Enter OTP"
+                            className="h-12 rounded-2xl border-brand-line bg-white"
+                          />
+                          <Button
+                            type="button"
+                            className="h-12 rounded-2xl bg-brand-primary px-5 text-white hover:bg-brand-primary/90"
+                            onClick={handleVerifyAdminOtp}
+                          >
+                            Verify OTP
+                          </Button>
+                        </div>
+
+                        {isDomainVerified ? (
+                          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                            <CheckCircle2 className="size-3.5" />
+                            Verified domain
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {isDomainVerified ? (
+                      <p className="rounded-2xl border border-brand-primary/10 bg-brand-primary/5 px-4 py-3 text-sm leading-6 text-brand-primary">
+                        Domain verified successfully. You can now submit the admin registration request.
+                      </p>
+                    ) : null}
+
+                    {isDomainVerified ? (
+                      <Button
+                        type="submit"
+                        size="lg"
+                        className="h-12 w-full rounded-2xl bg-brand-primary text-sm font-semibold text-white hover:bg-brand-primary/90"
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting ? "Submitting..." : "Submit admin registration"}
+                      </Button>
+                    ) : null}
                   </form>
                 ) : (
                   <form className="space-y-5" onSubmit={handleUserSubmit}>
