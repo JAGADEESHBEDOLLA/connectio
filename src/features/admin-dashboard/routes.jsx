@@ -6,6 +6,7 @@ import { TeamsPage } from "./pages/teams-page";
 import { CompanyApprovals } from "./pages/company-approvals";
 import { CompanyUsers } from "./pages/company-users";
 import { InviteUser } from "./pages/invite-user";
+import { SettingsPage } from "./pages/settings-page";
 import { AdminMfaSetupPage } from "@/features/admin-auth/pages/admin-mfa-setup-page";
 import { AdminMfaVerifyPage } from "@/features/admin-auth/pages/admin-mfa-verify-page";
 import { useAuthStore } from "@/store/auth-store";
@@ -109,7 +110,7 @@ export const AdminRoutes = (
       path="/admin/dashboard/settings"
       element={
         <ProtectedAdminRoute>
-          <AdminDashboardPage />
+          <SettingsPage />
         </ProtectedAdminRoute>
       }
     />
