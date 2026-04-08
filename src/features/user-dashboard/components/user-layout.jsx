@@ -130,7 +130,9 @@ export function UserLayout({ children }) {
             <nav className="flex flex-1 flex-col items-center space-y-1 overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-black/10 hover:[&::-webkit-scrollbar-thumb]:bg-black/20">
               {sidebarItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+                const isActive = item.path === "/user/dashboard"
+                  ? location.pathname === item.path
+                  : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
 
                 return (
                   <button
