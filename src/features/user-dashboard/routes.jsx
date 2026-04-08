@@ -3,6 +3,12 @@ import { Navigate, Route } from "react-router-dom";
 import { useAuthStore } from "@/store/auth-store";
 import { UserDashboardPage } from "./pages/user-dashboard-page";
 import { UserPlaceholderPage } from "./pages/user-placeholder-page";
+import { FilesPage } from "./pages/files-page";
+import { ChatPage } from "./pages/chat-page";
+import { CalendarPage } from "./pages/calendar-page";
+import { AiPage } from "./pages/ai-page";
+import { TeamsPage } from "./pages/teams-page";
+import { ChannelsPage } from "./pages/channels-page";
 
 function ProtectedUserRoute({ children }) {
   const session = useAuthStore((state) => state.session);
@@ -28,10 +34,7 @@ export const UserRoutes = (
       path="/user/dashboard/chat"
       element={
         <ProtectedUserRoute>
-          <UserPlaceholderPage
-            title="Chat"
-            description="This page is ready for the upcoming chat workspace."
-          />
+          <ChatPage />
         </ProtectedUserRoute>
       }
     />
@@ -50,10 +53,7 @@ export const UserRoutes = (
       path="/user/dashboard/channels"
       element={
         <ProtectedUserRoute>
-          <UserPlaceholderPage
-            title="Channels"
-            description="This page is ready for user channel participation."
-          />
+          <ChannelsPage />
         </ProtectedUserRoute>
       }
     />
@@ -61,10 +61,7 @@ export const UserRoutes = (
       path="/user/dashboard/teams"
       element={
         <ProtectedUserRoute>
-          <UserPlaceholderPage
-            title="Teams"
-            description="This page is ready for user team collaboration."
-          />
+          <TeamsPage />
         </ProtectedUserRoute>
       }
     />
@@ -72,10 +69,7 @@ export const UserRoutes = (
       path="/user/dashboard/files"
       element={
         <ProtectedUserRoute>
-          <UserPlaceholderPage
-            title="Files"
-            description="This page is ready for file browsing and sharing."
-          />
+          <FilesPage />
         </ProtectedUserRoute>
       }
     />
@@ -83,10 +77,7 @@ export const UserRoutes = (
       path="/user/dashboard/calendar"
       element={
         <ProtectedUserRoute>
-          <UserPlaceholderPage
-            title="Calendar"
-            description="This page is ready for schedules and calendar events."
-          />
+          <CalendarPage />
         </ProtectedUserRoute>
       }
     />
@@ -94,10 +85,7 @@ export const UserRoutes = (
       path="/user/dashboard/ai"
       element={
         <ProtectedUserRoute>
-          <UserPlaceholderPage
-            title="AI"
-            description="This page is ready for AI summaries, prompts, and assistance."
-          />
+          <AiPage />
         </ProtectedUserRoute>
       }
     />
