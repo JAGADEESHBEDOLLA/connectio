@@ -3,7 +3,9 @@ import {
   Bot,
   Calendar,
   ChevronRight,
+  ClipboardList,
   FileText,
+  Gem,
   Hash,
   Home,
   LogOut,
@@ -89,16 +91,16 @@ export function UserLayout({ children }) {
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,_#f6f6ff_0%,_#eef3ef_38%,_#f6f6ff_100%)] text-brand-ink">
-      <div className="flex items-center justify-between border-b border-brand-line bg-brand-primary p-4 lg:hidden">
+      <div className="flex items-center justify-between border-b border-brand-line/10 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-full bg-white/15">
-            <Home className="size-4 text-white" />
+          <div className="flex size-9 items-center justify-center rounded-lg bg-indigo-600 shadow-sm">
+            <Users2 className="size-5 text-white" />
           </div>
-          <span className="font-semibold text-white">User Workspace</span>
+          <span className="font-bold tracking-tight text-brand-ink">Connectio</span>
         </div>
         <button
           onClick={() => setIsMobileMenuOpen((current) => !current)}
-          className="rounded-lg border border-white/20 bg-white/10 p-2 text-white"
+          className="rounded-lg border border-brand-line/20 bg-brand-soft p-2 text-brand-ink outline-none transition-transform active:scale-95"
           type="button"
         >
           {isMobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
@@ -107,39 +109,28 @@ export function UserLayout({ children }) {
 
       <div className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col lg:flex-row">
         <aside
-          className={`${isMobileMenuOpen ? "flex" : "hidden"} fixed inset-0 z-50 flex-col bg-brand-primary text-white lg:sticky lg:top-0 lg:z-auto lg:flex lg:h-screen lg:w-[292px] lg:border-r lg:border-brand-line`}
+          className={`${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+            } fixed inset-y-0 left-0 z-50 flex w-[72px] flex-col border-r bg-[#f0f4f5] text-brand-ink transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:z-auto lg:flex lg:h-screen lg:translate-x-0`}
         >
-          <div className="flex h-full flex-col overflow-y-auto px-5 py-6 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.1)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10 hover:[&::-webkit-scrollbar-thumb]:bg-white/20">
+          <div className="flex h-full flex-col items-center py-4 [scrollbar-width:thin]">
+            {/* Teams-like Top Icon */}
             <div
-              className="cursor-pointer rounded-[24px] border border-white/10 bg-[#124f3d] p-5 transition hover:bg-[#155641]"
-              onClick={() => {
-                navigate("/user/dashboard");
-                setIsMobileMenuOpen(false);
-              }}
+              className="mb-4 flex size-12 cursor-pointer items-center justify-center rounded-xl transition-all duration-200 hover:bg-black/5"
+              onClick={() => navigate("/user/dashboard")}
             >
-              <p className="text-xs font-semibold uppercase tracking-[0.32em] text-white/70">
-                User Space
-              </p>
-              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white">
-                Collaboration workspace
-              </h1>
-              <p className="mt-2 text-sm leading-6 text-white/[0.72]">
-                Chat, meetings, files, channels, teams, calendar, and AI tools in one place.
-              </p>
+              <div className="relative flex size-10 items-center justify-center rounded-lg bg-indigo-600 shadow-lg">
+                <Users2 className="size-6 text-white" />
+                <div className="absolute -bottom-0.5 -right-0.5 flex size-4 items-center justify-center rounded-sm bg-white p-0.5 animate-pulse">
+                  <span className="text-[8px] font-bold text-indigo-600">T</span>
+                </div>
+              </div>
             </div>
 
-            <div className="mt-6 rounded-[24px] border border-white/10 bg-[#124f3d] p-4">
-              <p className="text-sm font-semibold text-white">{identity.displayName}</p>
-              <p className="mt-1 text-sm text-white/[0.72]">{identity.email}</p>
-              <span className="mt-3 inline-flex rounded-full border border-white/10 bg-[#1a684d] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/[0.82]">
-                {identity.role.replaceAll("_", " ")}
-              </span>
-            </div>
-
-            <nav className="mt-8 flex-1 space-y-1.5">
+            {/* Navigation Rail */}
+            <nav className="flex flex-1 flex-col items-center space-y-1 overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-black/10 hover:[&::-webkit-scrollbar-thumb]:bg-black/20">
               {sidebarItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.path;
+                const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
 
                 return (
                   <button
@@ -149,32 +140,34 @@ export function UserLayout({ children }) {
                       navigate(item.path);
                       setIsMobileMenuOpen(false);
                     }}
-                    className={`group flex w-full items-center justify-between rounded-2xl px-4 py-3.5 text-left text-sm font-medium transition-all duration-200 ${
-                      isActive
-                        ? "bg-white text-brand-primary shadow-[0_4px_20px_rgba(0,0,0,0.1)]"
-                        : "text-white/70 hover:bg-white/10 hover:text-white"
-                    }`}
+                    className={`group relative flex w-full flex-col items-center gap-1.5 py-2 transition-all duration-200 ${isActive
+                      ? "text-indigo-600"
+                      : "text-brand-ink/70 hover:bg-black/5 hover:text-brand-ink"
+                      }`}
                   >
-                    <span className="flex items-center gap-3.5">
-                      <Icon className={`size-[18px] ${isActive ? "scale-110" : "group-hover:scale-110"}`} />
+                    {/* Active Indicator Rail */}
+                    {isActive && (
+                      <div className="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-indigo-600" />
+                    )}
+
+                    <Icon className={`size-6 transition-transform duration-200 ${isActive ? "scale-110" : "group-hover:scale-105"}`} />
+                    <span className={`text-[10px] font-medium leading-none transition-all duration-200 ${isActive ? "opacity-100" : "opacity-80"}`}>
                       {item.label}
                     </span>
-                    <ChevronRight className={`size-4 ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-60"}`} />
                   </button>
                 );
               })}
             </nav>
 
-            <div className="mt-auto border-t border-white/10 pt-6">
-              <Button
+            {/* Bottom Premium-like Icon */}
+            <div className="mt-auto border-t border-brand-line/20 pt-4 pb-2">
+              <button
                 type="button"
-                variant="outline"
-                className="h-12 w-full rounded-2xl border-white/10 bg-white/5 text-white hover:border-white/20 hover:bg-white/10"
-                onClick={handleSignOut}
+                className="group flex flex-col items-center gap-1.5 transition-all duration-200 hover:text-brand-ink"
+                onClick={() => navigate("/user/dashboard/settings")}
               >
-                <LogOut className="mr-2 size-4" />
-                Sign out
-              </Button>
+                <Gem className="size-6 text-brand-ink/60 group-hover:text-amber-500 transition-colors" />
+              </button>
             </div>
           </div>
         </aside>
