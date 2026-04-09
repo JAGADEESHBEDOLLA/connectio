@@ -246,7 +246,7 @@ export function UserLayout({ children }) {
           </div>
         </section>
 
-        {/* <FloatingActionMenu items={quickActions} /> */}
+        <FloatingActionMenu items={quickActions} />
       </div>
     </main>
   );

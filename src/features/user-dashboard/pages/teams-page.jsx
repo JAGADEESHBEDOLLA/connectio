@@ -242,7 +242,7 @@ export function TeamsPage() {
         </div>
       )}
 
-      <div className="flex gap-5 h-full">
+      <div className="fixed top-20 bottom-0 left-0 lg:left-[72px] right-0 bg-[#f8fafc] z-[20] flex gap-6 p-6 overflow-hidden">
 
         {/* ── Left: Team List ── */}
         <div className="flex flex-col gap-4 w-full lg:w-[420px] shrink-0">

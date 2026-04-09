@@ -260,8 +260,9 @@ export function CalendarPage() {
         </div>
       )}
 
-      {/* ── Page Layout ── */}
-      <div className="flex flex-col lg:flex-row gap-4 h-full">
+      {/* ── Page Layout Breakout ── */}
+      <div className="fixed top-20 bottom-0 left-0 lg:left-[72px] right-0 bg-[#f8fafc] z-[20] flex justify-center p-4 sm:p-6 overflow-hidden">
+        <div className="flex flex-col lg:flex-row gap-6 w-full max-w-[1400px] h-full">
 
         {/* Calendar Grid */}
         <div className="flex-1 flex flex-col gap-3 bg-white rounded-[24px] border border-brand-line shadow-sm p-5">
@@ -413,6 +414,7 @@ export function CalendarPage() {
             </div>
           </div>
         </aside>
+        </div>
       </div>
     </UserLayout>
   );

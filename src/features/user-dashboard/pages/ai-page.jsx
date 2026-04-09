@@ -108,7 +108,7 @@ export function AiPage() {
 
   return (
     <UserLayout>
-      <div className="flex flex-col h-[calc(100vh-148px)] bg-white rounded-[28px] border border-brand-line shadow-sm overflow-hidden">
+      <div className="fixed top-20 bottom-0 left-0 lg:left-[72px] right-0 z-[20] flex flex-col bg-white overflow-hidden border-t lg:border-t-0 border-brand-line">
 
         {/* ── Header ── */}
         <header className="flex items-center justify-between px-6 py-4 border-b border-brand-line bg-gradient-to-r from-brand-primary/5 to-transparent shrink-0">
@@ -237,7 +237,7 @@ export function AiPage() {
         </div>
 
         {/* ── Input Bar ── */}
-        <div className="shrink-0 px-6 py-4 border-t border-brand-line bg-white">
+        <div className="shrink-0 pl-6 pr-24 py-4 border-t border-brand-line bg-white">
           <div className="flex items-end gap-3 bg-brand-neutral/40 border border-brand-line rounded-[20px] p-3 focus-within:border-brand-primary/50 focus-within:ring-2 focus-within:ring-brand-primary/10 transition-all">
             <textarea
               ref={textareaRef}

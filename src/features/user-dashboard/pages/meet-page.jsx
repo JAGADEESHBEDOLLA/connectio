@@ -83,9 +83,9 @@ export function MeetPage() {
 
   return (
     <UserLayout>
-      <div className="w-full h-[calc(100vh-90px)] -mx-5 -my-6 sm:-mx-8 lg:-mx-12 bg-gray-50 overflow-y-auto">
-        {/* Main Content */}
-        <div className="w-full h-full px-6 sm:px-8 lg:px-12 py-8 overflow-y-auto">
+      <div className="fixed top-20 bottom-0 left-0 lg:left-[72px] right-0 bg-gray-50 z-[20] flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto px-6 py-8 sm:px-8 sm:py-10 lg:px-12 [scrollbar-width:thin]">
+          <div className="mx-auto w-full flex flex-col gap-10 max-w-[1920px]">
           {/* Header */}
           <div className="mb-10">
             <h1 className="text-4xl font-bold text-gray-900 mb-2">Meet</h1>
@@ -193,6 +193,7 @@ export function MeetPage() {
                 </div>
               ))}
             </div>
+          </div>
           </div>
         </div>
 
