@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Send,
   Smile,
@@ -7,16 +8,19 @@ import {
   Video,
   MoreVertical,
   Search,
-  Plus,
   CheckCheck,
-  Circle,
-  Settings,
+  SquarePen,
   Plus as PlusIcon,
   ChevronLeft,
+  LoaderCircle,
 } from "lucide-react";
+import { toast } from "sonner";
+import { apiClient } from "@/lib/client";
+import { DM_SEND_MESSAGE, DM_USERS_SEARCH } from "@/config/api";
+import { useAuthStore } from "@/store/auth-store";
 import { UserLayout } from "../components/user-layout";
 
-const contacts = [
+const initialContacts = [
   {
     id: 1,
     name: "madhav",
@@ -73,26 +77,6 @@ const contacts = [
       { id: 1, from: "them", text: "Abhinaya: Thank you i received", time: "12:39", read: true },
     ],
   },
-  {
-    id: 5,
-    name: "HMS React Web Application - Team",
-    role: "Abhinaya: Thank you i received",
-    online: false,
-    unread: 0,
-    messages: [
-      { id: 1, from: "them", text: "Abhinaya: Thank you i received", time: "12:39", read: true },
-    ],
-  },
-  {
-    id: 5,
-    name: "HMS React Web Application - Team",
-    role: "Abhinaya: Thank you i received",
-    online: false,
-    unread: 0,
-    messages: [
-      { id: 1, from: "them", text: "Abhinaya: Thank you i received", time: "12:39", read: true },
-    ],
-  },
 ];
 
 function Avatar({ name, online, size = "size-10" }) {
@@ -109,18 +93,133 @@ function Avatar({ name, online, size = "size-10" }) {
   );
 }
 
+function normalizeSearchResults(data) {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.users)) {
+    return data.users;
+  }
+
+  if (Array.isArray(data?.results)) {
+    return data.results;
+  }
+
+  if (Array.isArray(data?.data)) {
+    return data.data;
+  }
+
+  return [];
+}
+
 export function ChatPage() {
-  const [activeContact, setActiveContact] = useState(contacts[0]);
+  const session = useAuthStore((state) => state.session);
+  const [contacts, setContacts] = useState(initialContacts);
+  const [activeContact, setActiveContact] = useState(initialContacts[0]);
   const [messageInput, setMessageInput] = useState("");
   const [conversations, setConversations] = useState(
-    Object.fromEntries(contacts.map(c => [c.id, c.messages]))
+    Object.fromEntries(initialContacts.map((contact) => [contact.id, contact.messages]))
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("chat");
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false);
+  const [isNewChatMode, setIsNewChatMode] = useState(false);
   const bottomRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const deferredNewChatQuery = useDeferredValue(searchQuery.trim());
 
   const currentMessages = conversations[activeContact.id] || [];
+
+  const sendMessageMutation = useMutation({
+    mutationFn: async ({ targetUserId, text }) => {
+      const response = await apiClient.post(
+        DM_SEND_MESSAGE(targetUserId),
+        {
+          content: text,
+          content_type: "text",
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${session?.accessToken}`,
+          },
+        }
+      );
+
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      const sentAt = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const newMsg = {
+        id: Date.now(),
+        from: "me",
+        text: variables.text,
+        time: sentAt,
+        read: false,
+      };
+
+      setConversations((prev) => ({
+        ...prev,
+        [variables.targetUserId]: [...(prev[variables.targetUserId] || []), newMsg],
+      }));
+
+      setContacts((prev) => {
+        const nextContacts = prev.map((contact) =>
+          contact.id === variables.targetUserId
+            ? {
+                ...contact,
+                role: `You: ${variables.text}`,
+                messages: [...(contact.messages || []), newMsg],
+              }
+            : contact
+        );
+
+        const updatedContact = nextContacts.find((contact) => contact.id === variables.targetUserId);
+        const otherContacts = nextContacts.filter((contact) => contact.id !== variables.targetUserId);
+
+        return updatedContact ? [updatedContact, ...otherContacts] : prev;
+      });
+
+      setActiveContact((current) =>
+        current.id === variables.targetUserId
+          ? {
+              ...current,
+              role: `You: ${variables.text}`,
+              messages: [...(current.messages || []), newMsg],
+            }
+          : current
+      );
+
+      setMessageInput("");
+    },
+    onError: () => {
+      toast.error("Unable to send the message right now.");
+    },
+  });
+
+  const searchUsersQuery = useQuery({
+    queryKey: ["dm-users-search", deferredNewChatQuery],
+    queryFn: async () => {
+      const response = await apiClient.get(DM_USERS_SEARCH, {
+        headers: {
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+        params: {
+          query: deferredNewChatQuery,
+        },
+      });
+
+      return normalizeSearchResults(response.data);
+    },
+    enabled: Boolean(session?.accessToken) && deferredNewChatQuery.length > 1 && isNewChatMode,
+    staleTime: 30 * 1000,
+  });
+
+  useEffect(() => {
+    if (isNewChatMode) {
+      searchInputRef.current?.focus();
+    }
+  }, [isNewChatMode]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -128,21 +227,12 @@ export function ChatPage() {
 
   function sendMessage() {
     const text = messageInput.trim();
-    if (!text) return;
+    if (!text || sendMessageMutation.isPending) return;
 
-    const newMsg = {
-      id: Date.now(),
-      from: "me",
+    sendMessageMutation.mutate({
+      targetUserId: activeContact.id,
       text,
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      read: false,
-    };
-
-    setConversations(prev => ({
-      ...prev,
-      [activeContact.id]: [...(prev[activeContact.id] || []), newMsg],
-    }));
-    setMessageInput("");
+    });
   }
 
   function handleKeyDown(e) {
@@ -156,28 +246,73 @@ export function ChatPage() {
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  function openConversation(contact) {
+    setActiveContact(contact);
+    setIsMobileChatOpen(true);
+    setIsNewChatMode(false);
+    setSearchQuery("");
+  }
+
+  function handleSelectSearchUser(user) {
+    const normalizedContact = {
+      id: user.id || user.user_id || user.email,
+      name: user.full_name || user.name || user.display_name || user.email || "Unknown user",
+      role: user.email || user.user_role || "New conversation",
+      online: Boolean(user.online || user.is_online || user.is_active),
+      unread: 0,
+      messages: conversations[user.id || user.user_id || user.email] || [],
+    };
+
+    setContacts((current) => {
+      const exists = current.find((item) => item.id === normalizedContact.id);
+      if (exists) {
+        return current;
+      }
+
+      return [normalizedContact, ...current];
+    });
+
+    setConversations((current) => ({
+      ...current,
+      [normalizedContact.id]: current[normalizedContact.id] || [],
+    }));
+
+    openConversation(normalizedContact);
+  }
+
+  function handleNewChatClick() {
+    setIsNewChatMode(true);
+    setSearchQuery("");
+  }
+
+  const sidebarResults = isNewChatMode ? searchUsersQuery.data || [] : filteredContacts;
+
   return (
     <UserLayout>
       <div className="fixed top-20 bottom-0 left-0 lg:left-[72px] right-0 bg-white z-[20] flex flex-col overflow-hidden">
         <div className="flex w-full h-full gap-0 overflow-hidden bg-white">
-
-          {/* ─── Left Sidebar - Chat List ─── */}
           <aside className={`shrink-0 border-r border-gray-200 flex-col bg-gray-50 ${isMobileChatOpen ? "hidden sm:flex" : "flex w-full sm:w-80"}`}>
-            {/* Header */}
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-2xl font-bold text-gray-900">Chat</h2>
                 <div className="flex items-center gap-2">
-                  <button className="p-2 hover:bg-white rounded-lg transition-colors">
-                    <Settings className="size-5 text-gray-700" />
+                  <button
+                    type="button"
+                    className="p-2 hover:bg-white rounded-lg transition-colors"
+                    aria-label="New chat"
+                    title="New chat"
+                    onClick={handleNewChatClick}
+                  >
+                    <SquarePen className="size-5 text-gray-700" />
                   </button>
                 </div>
               </div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
                 <input
+                  ref={searchInputRef}
                   type="text"
-                  placeholder="Search..."
+                  placeholder={isNewChatMode ? "Search by user name or email" : "Search..."}
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-full py-2.5 pl-10 pr-4 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-primary/30 transition-all"
@@ -185,40 +320,98 @@ export function ChatPage() {
               </div>
             </div>
 
-            {/* Recent Section */}
             <div className="flex-1 overflow-y-auto overflow-x-hidden [scrollbar-width:thin] [scrollbar-color:rgba(0,0,0,0.15)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-300">
               <div className="px-6 py-4">
-                <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">Recent</h3>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide">
+                    {isNewChatMode ? "Search results" : "Recent"}
+                  </h3>
+                  {isNewChatMode ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsNewChatMode(false);
+                        setSearchQuery("");
+                      }}
+                      className="text-xs font-semibold text-brand-primary hover:underline"
+                    >
+                      Cancel
+                    </button>
+                  ) : null}
+                </div>
                 <div className="space-y-2">
-                  {filteredContacts.map(contact => {
-                    const isActive = activeContact.id === contact.id;
+                  {isNewChatMode && deferredNewChatQuery.length <= 1 ? (
+                    <div className="rounded-lg bg-white px-4 py-4 text-sm text-gray-500">
+                      Type at least 2 characters to search for a person.
+                    </div>
+                  ) : null}
+
+                  {isNewChatMode && deferredNewChatQuery.length > 1 && searchUsersQuery.isLoading ? (
+                    <div className="flex items-center gap-3 rounded-lg bg-white px-4 py-4 text-sm text-gray-500">
+                      <LoaderCircle className="size-4 animate-spin" />
+                      Searching users
+                    </div>
+                  ) : null}
+
+                  {isNewChatMode && deferredNewChatQuery.length > 1 && searchUsersQuery.isError ? (
+                    <div className="rounded-lg bg-white px-4 py-4 text-sm text-rose-600">
+                      Unable to search users right now.
+                    </div>
+                  ) : null}
+
+                  {sidebarResults.map(contact => {
+                    const contactId = contact.id || contact.user_id || contact.email;
+                    const contactName = isNewChatMode
+                      ? contact.full_name || contact.name || contact.display_name || "Unknown user"
+                      : contact.name;
+                    const contactSubtitle = isNewChatMode
+                      ? contact.email || "No email available"
+                      : contact.role;
+                    const contactOnline = isNewChatMode
+                      ? Boolean(contact.online || contact.is_online || contact.is_active)
+                      : contact.online;
+                    const isActive = activeContact.id === contactId;
+                    const contactMessages = conversations[contactId] || contact.messages || [];
+
                     return (
                       <button
-                        key={contact.id}
-                        onClick={() => {
-                          setActiveContact(contact);
-                          setIsMobileChatOpen(true);
-                        }}
+                        key={contactId}
+                        onClick={() =>
+                          isNewChatMode ? handleSelectSearchUser(contact) : openConversation(contact)
+                        }
                         className={`w-full flex items-start gap-3 px-4 py-2.5 rounded-lg transition-all ${isActive
                           ? "bg-white shadow-sm"
                           : "hover:bg-white/50"
                           }`}
                       >
-                        <Avatar name={contact.name} online={contact.online} size="size-10" />
+                        <Avatar name={contactName} online={contactOnline} size="size-10" />
                         <div className="flex-1 min-w-0 text-left">
                           <p className={`text-sm font-bold truncate ${isActive ? "text-gray-900" : "text-gray-700"}`}>
-                            {contact.name}
+                            {contactName}
                           </p>
-                          <p className="text-xs text-gray-600 truncate">{contact.role}</p>
+                          <p className="text-xs text-gray-600 truncate">{contactSubtitle}</p>
                         </div>
-                        <p className="text-xs text-gray-500 shrink-0">{contact.messages[contact.messages.length - 1]?.time}</p>
+                        {!isNewChatMode ? (
+                          <p className="text-xs text-gray-500 shrink-0">
+                            {contactMessages[contactMessages.length - 1]?.time}
+                          </p>
+                        ) : null}
                       </button>
                     );
                   })}
+
+                  {isNewChatMode &&
+                  deferredNewChatQuery.length > 1 &&
+                  !searchUsersQuery.isLoading &&
+                  !searchUsersQuery.isError &&
+                  !sidebarResults.length ? (
+                    <div className="rounded-lg bg-white px-4 py-4 text-sm text-gray-500">
+                      No users found for this search.
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
-              {/* Invite Button */}
               <div className="p-6">
                 <button className="w-full flex items-center justify-center gap-2 rounded-lg bg-white border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                   <PlusIcon className="size-4" />
@@ -228,9 +421,7 @@ export function ChatPage() {
             </div>
           </aside>
 
-          {/* ─── Main Chat Area ─── */}
           <div className={`flex-1 flex-col min-w-0 bg-white ${isMobileChatOpen ? "flex" : "hidden sm:flex"}`}>
-            {/* Chat Header */}
             <header className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 bg-white shrink-0">
               <div className="flex items-center gap-3 sm:gap-4">
                 <button
@@ -261,7 +452,6 @@ export function ChatPage() {
               </div>
             </header>
 
-            {/* Tabs */}
             <div className="flex items-center gap-6 px-6 py-3 border-b border-gray-200 bg-gray-50">
               {["Chat", "Files", "Photos"].map(tab => (
                 <button
@@ -277,7 +467,6 @@ export function ChatPage() {
               ))}
             </div>
 
-            {/* Messages Area */}
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 bg-white [scrollbar-width:thin]">
               {currentMessages.map((msg, idx) => {
                 const isMe = msg.from === "me";
@@ -286,12 +475,10 @@ export function ChatPage() {
 
                 return (
                   <div key={msg.id} className={`flex items-end gap-3 ${isMe ? "flex-row-reverse justify-end" : "flex-row justify-start"}`}>
-                    {/* Avatar */}
                     <div className="w-8 h-8 shrink-0">
                       {!isMe && showAvatar && <Avatar name={activeContact.name} online={false} size="size-8" />}
                     </div>
 
-                    {/* Message */}
                     <div className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
                       {msg.isFile ? (
                         <div className={`px-4 py-3 rounded-xl text-sm font-medium shadow-sm border min-w-[200px] ${isMe
@@ -328,7 +515,6 @@ export function ChatPage() {
               <div ref={bottomRef} />
             </div>
 
-            {/* Message Input */}
             <div className="shrink-0 pl-6 pr-24 py-4 border-t border-gray-200 bg-white">
               <div className="flex items-end gap-3 bg-gray-100 border border-gray-300 rounded-full px-4 py-3 focus-within:border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/20 transition-all">
                 <button className="shrink-0 p-1.5 rounded-lg text-gray-600 hover:text-brand-primary hover:bg-white transition-colors">
@@ -354,10 +540,14 @@ export function ChatPage() {
                 </button>
                 <button
                   onClick={sendMessage}
-                  disabled={!messageInput.trim()}
+                  disabled={!messageInput.trim() || sendMessageMutation.isPending}
                   className="shrink-0 size-9 flex items-center justify-center rounded-lg bg-brand-primary text-white hover:bg-brand-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95"
                 >
-                  <Send className="size-5" />
+                  {sendMessageMutation.isPending ? (
+                    <LoaderCircle className="size-5 animate-spin" />
+                  ) : (
+                    <Send className="size-5" />
+                  )}
                 </button>
               </div>
             </div>

@@ -31,3 +31,11 @@ export const USERS_SEARCH = "/api/v1/dm/users/search";
 export const TEAMS_MEMBERS = (teamId) => `/teams/${teamId}/members`;
 export const TEAMS_ADD_MEMBER = (teamId) => `/teams/${teamId}/members`;
 export const TEAMS_ASSIGN_LEAD = (teamId) => `/teams/${teamId}/assign-admin`;
+
+export const PRESENCE_OPTIONS = "/api/v1/presence/options";
+export const PRESENCE_ME = "/api/v1/presence/me";
+export const PRESENCE_STATUS = "/api/v1/presence/status";
+export const PRESENCE_CUSTOM_STATUS = "/api/v1/presence/custom-status";
+
+export const DM_USERS_SEARCH = "/api/v1/dm/users/search";
+export const DM_SEND_MESSAGE = (targetUserId) => `/api/v1/dm/${targetUserId}`;

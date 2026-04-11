@@ -1,18 +1,15 @@
+import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
   Bot,
   Calendar,
   ChevronRight,
-  ClipboardList,
   FileText,
-  Gem,
   Hash,
   Home,
-  LogOut,
   Menu,
   MessageCircle,
   Search,
-  Users,
   Users2,
   Video,
   X,
@@ -22,7 +19,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { FloatingActionMenu } from "@/components/floating-action-menu";
 import { Button } from "@/components/ui/button";
+import { PRESENCE_ME } from "@/config/api";
+import { apiClient } from "@/lib/client";
 import { useAuthStore } from "@/store/auth-store";
+import { customStatusLabel, formatStatusLabel, normalizePresence } from "./presence-panel";
 import { UserProfileCard } from "./user-profile-card";
 
 export function UserLayout({ children }) {
@@ -32,6 +32,20 @@ export function UserLayout({ children }) {
   const clearSession = useAuthStore((state) => state.clearSession);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileCardOpen, setIsProfileCardOpen] = useState(false);
+
+  const presenceQuery = useQuery({
+    queryKey: ["presence-me"],
+    queryFn: async () => {
+      const response = await apiClient.get(PRESENCE_ME, {
+        headers: {
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+      });
+
+      return normalizePresence(response.data);
+    },
+    enabled: Boolean(session?.accessToken),
+  });
 
   const sidebarItems = [
     { label: "Home", icon: Home, path: "/user/dashboard" },
@@ -85,6 +99,10 @@ export function UserLayout({ children }) {
       path: "/user/dashboard/ai",
     },
   ];
+  const currentPresence = presenceQuery.data || { status: "online", customStatus: null };
+  const profileSubtitle = currentPresence?.customStatus
+    ? customStatusLabel(currentPresence.customStatus)
+    : formatStatusLabel(currentPresence?.status || "online");
 
   function handleSignOut() {
     clearSession();
@@ -115,7 +133,6 @@ export function UserLayout({ children }) {
             } fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r bg-[#f0f4f5] text-brand-ink transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:z-auto lg:w-[72px] lg:h-screen lg:translate-x-0`}
         >
           <div className="flex h-full flex-col items-center py-4 [scrollbar-width:thin]">
-            {/* Teams-like Top Icon */}
             <div
               className="mb-4 flex size-12 cursor-pointer items-center justify-center rounded-xl transition-all duration-200 hover:bg-black/5"
               onClick={() => navigate("/user/dashboard")}
@@ -128,7 +145,6 @@ export function UserLayout({ children }) {
               </div>
             </div>
 
-            {/* Navigation Rail */}
             <nav className="flex w-full flex-1 flex-col items-center space-y-1 overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-black/10 hover:[&::-webkit-scrollbar-thumb]:bg-black/20">
               {sidebarItems.map((item) => {
                 const Icon = item.icon;
@@ -149,7 +165,6 @@ export function UserLayout({ children }) {
                       : "text-brand-ink/70 hover:bg-black/5 hover:text-brand-ink lg:hover:bg-transparent"
                       }`}
                   >
-                    {/* Active Indicator Rail */}
                     {isActive && (
                       <div className="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-brand-primary" />
                     )}
@@ -162,17 +177,6 @@ export function UserLayout({ children }) {
                 );
               })}
             </nav>
-
-            {/* Bottom Premium-like Icon */}
-            <div className="mt-auto border-t border-brand-line/20 pt-4 pb-2">
-              <button
-                type="button"
-                className="group flex flex-col items-center gap-1.5 transition-all duration-200 hover:text-brand-ink"
-                onClick={() => navigate("/user/dashboard/settings")}
-              >
-                <Gem className="size-6 text-brand-ink/60 group-hover:text-amber-500 transition-colors" />
-              </button>
-            </div>
           </div>
         </aside>
 
@@ -223,8 +227,8 @@ export function UserLayout({ children }) {
                     <p className="text-sm font-bold leading-none text-brand-ink transition-colors group-hover:text-brand-primary">
                       {identity.displayName}
                     </p>
-                    <p className="mt-1 text-[10px] font-bold uppercase tracking-tight text-brand-ink/40">
-                      User Access
+                    <p className="mt-1 max-w-[170px] truncate text-[10px] font-bold uppercase tracking-tight text-brand-ink/40">
+                      {profileSubtitle}
                     </p>
                   </div>
                   <div className="flex size-10 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-brand-soft font-semibold text-brand-primary shadow-md">
@@ -233,6 +237,8 @@ export function UserLayout({ children }) {
                 </div>
                 <UserProfileCard
                   identity={identity}
+                  session={session}
+                  currentPresence={currentPresence}
                   isOpen={isProfileCardOpen}
                   onClose={() => setIsProfileCardOpen(false)}
                   onSignOut={handleSignOut}
