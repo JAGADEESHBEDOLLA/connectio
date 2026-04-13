@@ -15,14 +15,26 @@ const defaultValues = {
   password: "",
 };
 
-const demoUser = {
-  email: "user@demo.com",
-  password: "User@12345",
-  user_role: "USER",
-  access_token: "demo-user-access-token",
-  refresh_token: "demo-user-refresh-token",
-  expires_in: 86400,
-};
+const workspaceDemoAccounts = [
+  {
+    label: "Demo admin",
+    email: "admin@demo.com",
+    password: "Admin@12345",
+    user_role: "COMPANY_ADMIN",
+    access_token: "demo-admin-access-token",
+    refresh_token: "demo-admin-refresh-token",
+    expires_in: 86400,
+  },
+  {
+    label: "Demo user",
+    email: "user@demo.com",
+    password: "User@12345",
+    user_role: "USER",
+    access_token: "demo-user-access-token",
+    refresh_token: "demo-user-refresh-token",
+    expires_in: 86400,
+  },
+];
 
 export function LoginForm({ audience = "workspace" }) {
   const navigate = useNavigate();
@@ -41,12 +53,16 @@ export function LoginForm({ audience = "workspace" }) {
 
   const loginMutation = useMutation({
     mutationFn: async (payload) => {
-      if (
-        audience === "workspace" &&
-        payload.email.trim().toLowerCase() === demoUser.email &&
-        payload.password === demoUser.password
-      ) {
-        return demoUser;
+      if (audience === "workspace") {
+        const matchedDemoAccount = workspaceDemoAccounts.find(
+          (account) =>
+            payload.email.trim().toLowerCase() === account.email &&
+            payload.password === account.password
+        );
+
+        if (matchedDemoAccount) {
+          return matchedDemoAccount;
+        }
       }
 
       const response = await apiClient.post(AUTH_LOGIN, null, {
@@ -236,14 +252,26 @@ export function LoginForm({ audience = "workspace" }) {
 
       {!isSuperAdmin ? (
         <div className="mt-6 rounded-2xl border border-brand-line bg-brand-neutral p-4 text-sm text-brand-secondary">
-          Demo user:
-          <code className="mx-1 rounded bg-white px-1.5 py-0.5 text-xs text-brand-ink">
-            user@demo.com
-          </code>
-          /
-          <code className="ml-1 rounded bg-white px-1.5 py-0.5 text-xs text-brand-ink">
-            User@12345
-          </code>
+          <p className="font-medium text-brand-ink">Demo logins</p>
+          <div className="mt-3 space-y-2">
+            {workspaceDemoAccounts.map((account) => (
+              <div
+                key={account.email}
+                className="flex flex-wrap items-center gap-2 rounded-xl border border-brand-line/80 bg-white px-3 py-2"
+              >
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-secondary">
+                  {account.label}
+                </span>
+                <code className="rounded bg-brand-neutral px-1.5 py-0.5 text-xs text-brand-ink">
+                  {account.email}
+                </code>
+                <span className="text-xs text-brand-secondary">/</span>
+                <code className="rounded bg-brand-neutral px-1.5 py-0.5 text-xs text-brand-ink">
+                  {account.password}
+                </code>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
     </div>
