@@ -260,9 +260,10 @@ export function ChatPage() {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ targetUserId, text }) => {
+    mutationFn: async ({ targetUserId, channelId, text }) => {
+      const endpoint = channelId ? CHANNEL_MESSAGES(channelId) : DM_SEND_MESSAGE(targetUserId);
       const response = await apiClient.post(
-        DM_SEND_MESSAGE(targetUserId),
+        endpoint,
         {
           content: text,
           content_type: "text",
