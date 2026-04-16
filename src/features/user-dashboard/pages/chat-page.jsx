@@ -410,7 +410,14 @@ export function ChatPage() {
     }
 
     const socket = new WebSocket(socketUrl);
+    let disposed = false;
     chatSocketRef.current = socket;
+
+    socket.onopen = () => {
+      if (disposed) {
+        socket.close();
+      }
+    };
 
     socket.onmessage = async (event) => {
       try {
@@ -502,14 +509,13 @@ export function ChatPage() {
     };
 
     return () => {
+      disposed = true;
+
       if (chatSocketRef.current === socket) {
         chatSocketRef.current = null;
       }
 
-      if (
-        socket.readyState === WebSocket.OPEN ||
-        socket.readyState === WebSocket.CONNECTING
-      ) {
+      if (socket.readyState === WebSocket.OPEN) {
         socket.close();
       }
     };
