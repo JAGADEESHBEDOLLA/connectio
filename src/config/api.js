@@ -41,6 +41,8 @@ export const DM_USERS_SEARCH = "/api/v1/dm/users/search";
 export const DM_SEND_MESSAGE = (targetUserId) => `/api/v1/dm/${targetUserId}`;
 
 export const CHANNEL_MESSAGES = (channelId) => `/api/v1/channels/${channelId}/messages`;
+export const CHANNELS_CREATE = "/api/v1/channels";
+export const CHANNELS_LIST = "/api/v1/channels";
 export const CHANNEL_MESSAGE = (channelId, messageId) =>
   `/api/v1/channels/${channelId}/messages/${messageId}`;
 

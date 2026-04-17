@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
@@ -41,12 +41,25 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { apiClient } from "@/lib/client";
+import { CHANNELS_CREATE, CHANNELS_LIST, TEAMS_LIST } from "@/config/api";
+import { useAuthStore } from "@/store/auth-store";
+
+
 
 // Schema based on user input
 const channelSchema = z.object({
   name: z.string().min(1, "Name is required"),
   slug: z.string().min(1, "Slug is required").regex(/^[a-z0-9-]+$/, "Slug must be lowercase alphanumeric and dashes"),
-  visibility: z.string().default("public"),
+  visibility: z.enum(["public", "private"]).default("public"),
   is_cross_team: z.boolean().default(false),
   description: z.string().optional(),
   company_id: z.string().uuid("Invalid Company ID"),
@@ -60,9 +73,9 @@ const channelSchema = z.object({
   is_discoverable: z.boolean().default(true),
   message_retention_days: z.number().min(1).default(365),
   max_members: z.number().min(1).default(100),
-  default_access: z.string().default("member"),
+  default_access: z.enum(["member", "guest", "admin"]).default("member"),
   settings: z.object({
-    notifications_default: z.string().default("all"),
+    notifications_default: z.enum(["all", "mentions", "nothing"]).default("all"),
     allow_mentions: z.boolean().default(true),
     allow_file_uploads: z.boolean().default(true),
     allow_link_previews: z.boolean().default(true),
@@ -104,16 +117,66 @@ const DEFAULT_VALUES = {
 };
 
 export function ChannelsPage() {
-  const [channels, setChannels] = useState([
-    { id: 1, name: "general", description: "Company-wide discussions and updates", is_private: false },
-    { id: 2, name: "engineering", description: "All things tech and code", is_private: false },
-    { id: 3, name: "marketing-ops", description: "Marketing operations and campaigns", is_private: true },
-    { id: 4, name: "design-system", description: "UI/UX consistency and documentation", is_private: false },
-  ]);
-
-  const [selectedChannel, setSelectedChannel] = useState(channels[0]);
+  const [teams, setTeams] = useState([]);
+  const [selectedTeamId, setSelectedTeamId] = useState("");
+  const [channels, setChannels] = useState([]);
+  const [selectedChannel, setSelectedChannel] = useState(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const session = useAuthStore((state) => state.session);
+  const token = session?.accessToken;
+
+  // Fetch teams first
+  React.useEffect(() => {
+    const fetchTeams = async () => {
+      try {
+        const response = await apiClient.get(TEAMS_LIST, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+
+        const rawData = response.data;
+        // Handle various response structures (array, departments, items)
+        const teamDataRaw = Array.isArray(rawData) ? rawData : (rawData?.departments || rawData?.items || []);
+
+        // Transform to ensure uniform id and name fields
+        const transformedTeams = teamDataRaw.map(team => ({
+          ...team,
+          id: team.id || team.team_id || team.uuid || team.department_id,
+          name: team.name || team.department_name || "Unnamed Team"
+        }));
+
+        setTeams(transformedTeams);
+        // Removed auto-selection of first team to allow "Select Team" placeholder to show
+      } catch (error) {
+        console.error("Error fetching teams:", error);
+      }
+    };
+    if (token) fetchTeams();
+  }, [token]);
+
+  // Fetch all channels on mount
+  React.useEffect(() => {
+    const fetchChannels = async () => {
+      try {
+        setIsLoading(true);
+        const response = await apiClient.get(CHANNELS_LIST, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const channelData = Array.isArray(response.data) ? response.data : (response.data?.items || []);
+        setChannels(channelData);
+        if (channelData.length > 0) {
+          setSelectedChannel(channelData[0]);
+        }
+      } catch (error) {
+        console.error("Error fetching channels:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    if (token) fetchChannels();
+  }, [token]);
 
   const {
     register,
@@ -121,23 +184,66 @@ export function ChannelsPage() {
     setValue,
     watch,
     reset,
+    control,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(channelSchema),
-    defaultValues: DEFAULT_VALUES,
+    defaultValues: {
+      ...DEFAULT_VALUES,
+      team_id: selectedTeamId || DEFAULT_VALUES.team_id,
+    },
   });
 
-  const onSubmit = (data) => {
-    console.log("Creating channel:", data);
-    const newChannel = {
-      id: channels.length + 1,
-      name: data.name,
-      description: data.description,
-      is_private: data.is_private,
-    };
-    setChannels([...channels, newChannel]);
-    setIsDialogOpen(false);
-    reset();
+  // Sync team_id in form when selectedTeamId changes
+  React.useEffect(() => {
+    if (selectedTeamId) {
+      setValue("team_id", selectedTeamId);
+    }
+  }, [selectedTeamId, setValue]);
+
+  // Sync company_id in form when session changes
+  React.useEffect(() => {
+    if (session?.company_id) {
+      setValue("company_id", session.company_id);
+    }
+  }, [session, setValue]);
+
+  const onSubmit = async (data) => {
+    try {
+      // Final data preparation
+      const payload = {
+        ...data,
+        is_private: data.visibility === "private" || data.is_private,
+        parent_channel_id: data.parent_channel_id || null,
+      };
+
+      console.log("Submitting channel creation payload:", payload);
+
+      const response = await apiClient.post(CHANNELS_CREATE, payload, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      console.log("Channel creation successful:", response.data);
+
+      const newChannel = response.data;
+      setChannels(prev => [...prev, newChannel]);
+      setSelectedChannel(newChannel);
+
+      setIsDialogOpen(false);
+      reset({
+        ...DEFAULT_VALUES,
+        team_id: selectedTeamId,
+      });
+    } catch (error) {
+      console.error("Critical error in channel creation:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || "Failed to create channel. Please check your inputs and try again.";
+      alert(`Error: ${errorMessage}`);
+    }
   };
 
   // Watch for slug generation
@@ -151,6 +257,12 @@ export function ChannelsPage() {
       setValue("slug", slug);
     }
   }, [nameValue, setValue]);
+
+  // Sync is_private with visibility
+  const visibilityValue = watch("visibility");
+  React.useEffect(() => {
+    setValue("is_private", visibilityValue === "private");
+  }, [visibilityValue, setValue]);
 
   return (
     <AdminLayout>
@@ -169,7 +281,28 @@ export function ChannelsPage() {
           "absolute inset-y-0 left-0 z-20 w-72 flex-col border-r border-brand-line bg-brand-soft transform transition-transform duration-300 md:relative md:translate-x-0 md:flex",
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}>
-          <div className="p-6">
+          <div className="p-6 space-y-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-secondary/70 ml-1">Active Team</Label>
+              <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+                <SelectTrigger className="w-full bg-white border-brand-line rounded-xl h-12 shadow-sm focus:ring-brand-primary/10">
+                  <SelectValue placeholder="Select team" />
+                </SelectTrigger>
+                <SelectContent position="popper" className="rounded-2xl border-brand-line p-1">
+                  {teams?.map?.((team) => (
+                    <SelectItem key={team.id} value={team.id} className="rounded-xl py-2.5 focus:bg-brand-soft focus:text-brand-primary">
+                      <div className="flex items-center gap-2">
+                        <div className="size-5 rounded-md bg-brand-primary/10 flex items-center justify-center text-[10px] font-bold text-brand-primary">
+                          {team.name?.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-semibold text-brand-ink">{team.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold tracking-tight text-brand-ink">Channels</h2>
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -186,135 +319,375 @@ export function ChannelsPage() {
                     </DialogDescription>
                   </DialogHeader>
 
-                  <form onSubmit={handleSubmit(onSubmit)} className="px-6 md:px-12 pb-12 space-y-8 md:space-y-10">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                      <div className="space-y-2">
-                        <Label htmlFor="name" className="text-brand-ink font-semibold">Name</Label>
-                        <div className="relative">
-                          <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-secondary/40" />
-                          <Input
-                            id="name"
-                            placeholder="e.g. marketing"
-                            className="pl-9 rounded-xl border-brand-line focus:ring-brand-primary/20"
-                            {...register("name")}
-                          />
-                        </div>
-                        {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="slug" className="text-brand-ink font-semibold">Slug</Label>
-                        <Input
-                          id="slug"
-                          placeholder="marketing-ops"
-                          className="rounded-xl border-brand-line focus:ring-brand-primary/20"
-                          {...register("slug")}
-                        />
-                        {errors.slug && <p className="text-xs text-red-500">{errors.slug.message}</p>}
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <Label htmlFor="description" className="text-brand-ink font-bold text-lg">Description (Optional)</Label>
-                      <Textarea
-                        id="description"
-                        placeholder="What is this channel about?"
-                        className="rounded-2xl border-brand-line focus:ring-brand-primary/20 min-h-[120px] text-base p-4"
-                        {...register("description")}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                      <div className="space-y-2">
-                        <Label htmlFor="topic" className="text-brand-ink font-semibold">Topic</Label>
-                        <Input
-                          id="topic"
-                          placeholder="Brief topic"
-                          className="rounded-xl border-brand-line focus:ring-brand-primary/20"
-                          {...register("topic")}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="purpose" className="text-brand-ink font-semibold">Purpose</Label>
-                        <Input
-                          id="purpose"
-                          placeholder="Long-term purpose"
-                          className="rounded-xl border-brand-line focus:ring-brand-primary/20"
-                          {...register("purpose")}
-                        />
-                      </div>
-                    </div>
-
-                    <Separator className="bg-brand-line/50 my-6" />
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="flex items-center gap-4 p-5 rounded-3xl border-2 border-brand-line bg-brand-soft/5 transition-colors hover:bg-brand-soft/10 group cursor-pointer">
-                        <div className={cn("p-3 rounded-2xl transition-colors", watch("is_private") ? "bg-amber-100 text-amber-600" : "bg-blue-100 text-blue-600")}>
-                          {watch("is_private") ? <Lock className="size-6" /> : <Globe className="size-6" />}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-base font-black text-brand-ink">Private Channel</p>
-                          <p className="text-xs text-brand-secondary">Invite only access</p>
-                        </div>
-                        <input
-                          type="checkbox"
-                          className="size-6 rounded-lg border-2 border-brand-line text-brand-primary focus:ring-brand-primary/20"
-                          {...register("is_private")}
-                        />
-                      </div>
-
-                      <div className="flex items-center gap-4 p-5 rounded-3xl border-2 border-brand-line bg-brand-soft/5 transition-colors hover:bg-brand-soft/10 group cursor-pointer">
-                        <div className="p-3 rounded-2xl bg-purple-100 text-purple-600">
-                          <Users className="size-6" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-base font-black text-brand-ink">Cross Team</p>
-                          <p className="text-xs text-brand-secondary">Allow shared access</p>
-                        </div>
-                        <input
-                          type="checkbox"
-                          className="size-6 rounded-lg border-2 border-brand-line text-brand-primary focus:ring-brand-primary/20"
-                          {...register("is_cross_team")}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                      <div className="space-y-3">
-                        <Label className="text-brand-ink font-bold text-lg">Retention (Days)</Label>
-                        <Input
-                          type="number"
-                          className="rounded-2xl border-brand-line h-12"
-                          {...register("message_retention_days", { valueAsNumber: true })}
-                        />
-                      </div>
-                      <div className="space-y-3">
-                        <Label className="text-brand-ink font-bold text-lg">Max Members</Label>
-                        <Input
-                          type="number"
-                          className="rounded-2xl border-brand-line h-12"
-                          {...register("max_members", { valueAsNumber: true })}
-                        />
-                      </div>
-                    </div>
-
+                  <form onSubmit={handleSubmit(onSubmit)} className="px-6 md:px-12 pb-12 space-y-12">
+                    {/* Basic Information */}
                     <div className="space-y-6">
-                      <h3 className="text-xs font-black text-brand-secondary uppercase tracking-[0.2em]">Channel Permissions</h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {[
-                          { name: "settings.allow_mentions", label: "Allow @mentions" },
-                          { name: "settings.allow_file_uploads", label: "File Uploads" },
-                          { name: "settings.allow_link_previews", label: "Link Previews" },
-                          { name: "settings.allow_bots", label: "Allow Bots" },
-                        ].map((field) => (
-                          <div key={field.name} className="flex items-center justify-between p-4 rounded-2xl bg-brand-soft/5 border border-brand-line/50 hover:bg-white hover:shadow-sm transition-all group">
-                            <span className="text-sm font-bold text-brand-ink/80">{field.label}</span>
-                            <input
-                              type="checkbox"
-                              className="size-5 rounded border-2 border-brand-line text-brand-primary transition-transform group-hover:scale-110"
-                              {...register(field.name)}
+                      <h3 className="text-sm font-black text-brand-secondary uppercase tracking-[0.2em] border-l-4 border-brand-primary pl-3">Basic Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label htmlFor="name" className="text-brand-ink font-semibold">Channel Name</Label>
+                          <div className="relative">
+                            <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-brand-secondary/40" />
+                            <Input
+                              id="name"
+                              placeholder="e.g. engineering"
+                              className="pl-9 rounded-xl border-brand-line focus:ring-brand-primary/20 h-12"
+                              {...register("name")}
                             />
                           </div>
+                          {errors.name && <p className="text-xs text-red-500 font-medium">{errors.name.message}</p>}
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="slug" className="text-brand-ink font-semibold">URL Slug</Label>
+                          <Input
+                            id="slug"
+                            placeholder="engineering-tech"
+                            className="rounded-xl border-brand-line focus:ring-brand-primary/20 h-12"
+                            {...register("slug")}
+                          />
+                          {errors.slug && <p className="text-xs text-red-500 font-medium">{errors.slug.message}</p>}
+                        </div>
+                      </div>
+
+                      {/* Visibility & Access */}
+                      <div className="space-y-6">
+                        <h3 className="text-sm font-black text-brand-secondary uppercase tracking-[0.2em] border-l-4 border-emerald-500 pl-3">Visibility & Access</h3>
+
+                        <div className="space-y-3">
+                          <Label className="text-brand-ink font-semibold ml-1">Channel Visibility</Label>
+                          <Controller
+                            name="visibility"
+                            control={control}
+                            render={({ field }) => (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <button
+                                  type="button"
+                                  onClick={() => field.onChange("public")}
+                                  className={cn(
+                                    "flex items-center gap-4 p-5 rounded-3xl border-2 transition-all text-left",
+                                    field.value === "public"
+                                      ? "border-brand-primary bg-brand-primary/5 shadow-lg shadow-brand-primary/5"
+                                      : "border-brand-line bg-white hover:border-brand-primary/30"
+                                  )}
+                                >
+                                  <div className={cn("p-3 rounded-2xl transition-colors", field.value === "public" ? "bg-brand-primary text-white" : "bg-brand-soft text-brand-primary")}>
+                                    <Globe className="size-6" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="text-base font-black text-brand-ink">Public Channel</p>
+                                    <p className="text-xs text-brand-secondary">Open to everyone in the team</p>
+                                  </div>
+                                  <div className={cn("size-6 rounded-full border-2 flex items-center justify-center transition-all", field.value === "public" ? "border-brand-primary bg-brand-primary" : "border-brand-line")}>
+                                    {field.value === "public" && <div className="size-2 rounded-full bg-white" />}
+                                  </div>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => field.onChange("private")}
+                                  className={cn(
+                                    "flex items-center gap-4 p-5 rounded-3xl border-2 transition-all text-left",
+                                    field.value === "private"
+                                      ? "border-amber-500 bg-amber-50 shadow-lg shadow-amber-500/5"
+                                      : "border-brand-line bg-white hover:border-amber-500/30"
+                                  )}
+                                >
+                                  <div className={cn("p-3 rounded-2xl transition-colors", field.value === "private" ? "bg-amber-500 text-white" : "bg-brand-soft text-amber-600")}>
+                                    <Lock className="size-6" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="text-base font-black text-brand-ink">Private Channel</p>
+                                    <p className="text-xs text-brand-secondary">Invite only access for members</p>
+                                  </div>
+                                  <div className={cn("size-6 rounded-full border-2 flex items-center justify-center transition-all", field.value === "private" ? "border-amber-500 bg-amber-500" : "border-brand-line")}>
+                                    {field.value === "private" && <div className="size-2 rounded-full bg-white" />}
+                                  </div>
+                                </button>
+                              </div>
+                            )}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-2">
+                            <Label className="text-brand-ink font-semibold ml-1">Default Member Access</Label>
+                            <Controller
+                              name="default_access"
+                              control={control}
+                              render={({ field }) => (
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <SelectTrigger className="rounded-xl border-brand-line h-12">
+                                    <SelectValue placeholder="Select access" />
+                                  </SelectTrigger>
+                                  <SelectContent position="popper" sideOffset={5}>
+                                    <SelectItem value="member">Member (Full Access)</SelectItem>
+                                    <SelectItem value="guest">Guest (Limited Access)</SelectItem>
+                                    <SelectItem value="admin">Admin (Manage Channel)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="description" className="text-brand-ink font-semibold">Description</Label>
+                        <Textarea
+                          id="description"
+                          placeholder="What is this channel for? Helps people find the right place for discussions."
+                          className="rounded-xl border-brand-line focus:ring-brand-primary/20 min-h-[80px] text-base p-4"
+                          {...register("description")}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Topic & Purpose */}
+                    <div className="space-y-6">
+                      <h3 className="text-sm font-black text-brand-secondary uppercase tracking-[0.2em] border-l-4 border-amber-400 pl-3">Context & Purpose</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label htmlFor="topic" className="text-brand-ink font-semibold">Topic</Label>
+                          <Input
+                            id="topic"
+                            placeholder="e.g. Deployments & Infrastructure"
+                            className="rounded-xl border-brand-line focus:ring-brand-primary/20 h-12"
+                            {...register("topic")}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="purpose" className="text-brand-ink font-semibold">Long-term Purpose</Label>
+                          <Input
+                            id="purpose"
+                            placeholder="e.g. Strategic alignment for DevOps"
+                            className="rounded-xl border-brand-line focus:ring-brand-primary/20 h-12"
+                            {...register("purpose")}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Appearance */}
+                    <div className="space-y-6">
+                      <h3 className="text-sm font-black text-brand-secondary uppercase tracking-[0.2em] border-l-4 border-purple-500 pl-3">Appearance</h3>
+
+                      <div className="space-y-4">
+                        <Label className="text-brand-ink font-semibold ml-1">Channel Avatar</Label>
+                        <Controller
+                          name="avatar_url"
+                          control={control}
+                          render={({ field }) => (
+                            <div className="flex flex-wrap gap-4">
+                              {[
+                                "https://images.unsplash.com/photo-1567446537708-ac4aa75c9c28?q=80&w=100", // Tech
+                                "https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=100", // Abstract
+                                "https://images.unsplash.com/photo-1614850523296-d8c1af93d400?q=80&w=100", // Gradient
+                                "https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=100", // Purple
+                              ].map((url, i) => (
+                                <button
+                                  key={url}
+                                  type="button"
+                                  onClick={() => field.onChange(url)}
+                                  className={cn(
+                                    "size-16 rounded-2xl overflow-hidden border-4 transition-all hover:scale-105 active:scale-95 shadow-sm",
+                                    field.value === url ? "border-brand-primary scale-110 shadow-lg shadow-brand-primary/20" : "border-transparent"
+                                  )}
+                                >
+                                  <img src={url} className="size-full object-cover" alt={`Preset ${i + 1}`} />
+                                </button>
+                              ))}
+                              <div className="flex-1 min-w-[200px]">
+                                <Input
+                                  value={field.value}
+                                  onChange={field.onChange}
+                                  placeholder="Or paste custom image URL..."
+                                  className="rounded-xl border-brand-line h-16 bg-brand-soft/5"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="banner_url" className="text-brand-ink font-semibold ml-1">Banner URL (Optional)</Label>
+                        <Input
+                          id="banner_url"
+                          placeholder="https://example.com/banner.jpg"
+                          className="rounded-xl border-brand-line focus:ring-brand-primary/20 h-12"
+                          {...register("banner_url")}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Advanced Settings */}
+                    <div className="space-y-6">
+                      <h3 className="text-sm font-black text-brand-secondary uppercase tracking-[0.2em] border-l-4 border-emerald-500 pl-3">Advanced Controls</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label className="text-brand-ink font-semibold">Message Retention (Days)</Label>
+                          <Input
+                            type="number"
+                            className="rounded-xl border-brand-line h-12"
+                            {...register("message_retention_days", { valueAsNumber: true })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-brand-ink font-semibold">Max Member Limit</Label>
+                          <Input
+                            type="number"
+                            className="rounded-xl border-brand-line h-12"
+                            {...register("max_members", { valueAsNumber: true })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <Label className="text-brand-ink font-semibold ml-1">Default Notifications</Label>
+                        <Controller
+                          name="settings.notifications_default"
+                          control={control}
+                          render={({ field }) => (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              {[
+                                { value: "all", label: "All Messages", desc: "Every post" },
+                                { value: "mentions", label: "Mentions Only", desc: "Stay focused" },
+                                { value: "nothing", label: "Nothing", desc: "Stay quiet" },
+                              ].map((opt) => (
+                                <button
+                                  key={opt.value}
+                                  type="button"
+                                  onClick={() => field.onChange(opt.value)}
+                                  className={cn(
+                                    "flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all p-4 text-center gap-1",
+                                    field.value === opt.value
+                                      ? "border-brand-primary bg-brand-primary/5 text-brand-primary"
+                                      : "border-brand-line bg-white hover:border-brand-primary/20 text-brand-secondary"
+                                  )}
+                                >
+                                  <span className="text-sm font-black">{opt.label}</span>
+                                  <span className="text-[10px] opacity-70">{opt.desc}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* <div className="space-y-2">
+                          <Label htmlFor="parent_channel_id" className="text-brand-ink font-semibold ml-1">Parent Channel ID (Optional)</Label>
+                          <Input
+                            id="parent_channel_id"
+                            placeholder="UUID of parent channel"
+                            className="rounded-xl border-brand-line focus:ring-brand-primary/20 h-12"
+                            {...register("parent_channel_id")}
+                          />
+                        </div> */}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="flex items-center justify-between p-5 rounded-3xl border-2 border-brand-line bg-brand-soft/5 hover:bg-white transition-all group">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm font-black text-brand-ink">Cross Team Channel</span>
+                            <span className="text-[10px] text-brand-secondary">Accessible across different teams</span>
+                          </div>
+                          <Controller
+                            name="is_cross_team"
+                            control={control}
+                            render={({ field }) => (
+                              <button
+                                type="button"
+                                onClick={() => field.onChange(!field.value)}
+                                className={cn(
+                                  "w-10 h-6 rounded-full relative transition-colors duration-200",
+                                  field.value ? "bg-brand-primary" : "bg-brand-line"
+                                )}
+                              >
+                                <div className={cn(
+                                  "absolute top-1 size-4 rounded-full bg-white transition-all duration-200",
+                                  field.value ? "left-5" : "left-1"
+                                )} />
+                              </button>
+                            )}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between p-5 rounded-3xl border-2 border-brand-line bg-brand-soft/5 hover:bg-white transition-all group">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm font-black text-brand-ink">Discoverable</span>
+                            <span className="text-[10px] text-brand-secondary">Show in channel browser</span>
+                          </div>
+                          <Controller
+                            name="is_discoverable"
+                            control={control}
+                            render={({ field }) => (
+                              <button
+                                type="button"
+                                onClick={() => field.onChange(!field.value)}
+                                className={cn(
+                                  "w-10 h-6 rounded-full relative transition-colors duration-200",
+                                  field.value ? "bg-brand-primary" : "bg-brand-line"
+                                )}
+                              >
+                                <div className={cn(
+                                  "absolute top-1 size-4 rounded-full bg-white transition-all duration-200",
+                                  field.value ? "left-5" : "left-1"
+                                )} />
+                              </button>
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Permissions */}
+                    <div className="space-y-6">
+                      <h3 className="text-sm font-black text-brand-secondary uppercase tracking-[0.2em] border-l-4 border-blue-600 pl-3">Permissions & Interaction</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {[
+                          { name: "settings.allow_mentions", label: "Allow @mentions", desc: "Notify users when mentioned", icon: <Hash className="size-5" /> },
+                          { name: "settings.allow_file_uploads", label: "File Uploads", desc: "Members can attach files", icon: <ImageIcon className="size-5" /> },
+                          { name: "settings.allow_link_previews", label: "Link Previews", desc: "Generate rich link previews", icon: <Globe className="size-5" /> },
+                          { name: "settings.allow_bots", label: "Allow Bots", desc: "Integrations can post here", icon: <PlusCircle className="size-5" /> },
+                          { name: "settings.allow_guest_access", label: "Guest Access", desc: "External guests can join", icon: <Users className="size-5" /> },
+                        ].map((field) => (
+                          <Controller
+                            key={field.name}
+                            name={field.name}
+                            control={control}
+                            render={({ field: switchField }) => (
+                              <button
+                                type="button"
+                                onClick={() => switchField.onChange(!switchField.value)}
+                                className={cn(
+                                  "flex items-center justify-between p-5 rounded-3xl border-2 transition-all hover:shadow-lg hover:shadow-brand-ink/5 group",
+                                  switchField.value
+                                    ? "bg-white border-brand-primary"
+                                    : "bg-brand-soft/5 border-brand-line"
+                                )}
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className={cn("p-2 rounded-xl transition-colors", switchField.value ? "bg-brand-primary/10 text-brand-primary" : "bg-brand-soft text-brand-secondary")}>
+                                    {field.icon}
+                                  </div>
+                                  <div className="flex flex-col gap-0.5 text-left">
+                                    <span className="text-sm font-black text-brand-ink/80">{field.label}</span>
+                                    <span className="text-[10px] text-brand-secondary">{field.desc}</span>
+                                  </div>
+                                </div>
+                                <div className={cn(
+                                  "w-10 h-6 rounded-full relative transition-colors duration-200",
+                                  switchField.value ? "bg-brand-primary" : "bg-brand-line"
+                                )}>
+                                  <div className={cn(
+                                    "absolute top-1 size-4 rounded-full bg-white transition-all duration-200",
+                                    switchField.value ? "left-5" : "left-1"
+                                  )} />
+                                </div>
+                              </button>
+                            )}
+                          />
                         ))}
                       </div>
                     </div>
@@ -353,26 +726,26 @@ export function ChannelsPage() {
 
           <ScrollArea className="flex-1 px-4 pb-6">
             <div className="space-y-1">
-              {channels.map((channel) => (
+              {channels?.map?.((channel) => (
                 <button
                   key={channel.id}
                   onClick={() => setSelectedChannel(channel)}
                   className={cn(
                     "group flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-medium transition-all duration-200",
-                    selectedChannel.id === channel.id
+                    selectedChannel?.id === channel.id
                       ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/20"
                       : "text-brand-secondary hover:bg-brand-primary/5 hover:text-brand-primary"
                   )}
                 >
                   <div className="flex items-center gap-3">
                     {channel.is_private ? (
-                      <Lock className={cn("size-4", selectedChannel.id === channel.id ? "text-white/70" : "text-brand-secondary/40 group-hover:text-brand-primary/60")} />
+                      <Lock className={cn("size-4", selectedChannel?.id === channel.id ? "text-white/70" : "text-brand-secondary/40 group-hover:text-brand-primary/60")} />
                     ) : (
-                      <Hash className={cn("size-4", selectedChannel.id === channel.id ? "text-white/70" : "text-brand-secondary/40 group-hover:text-brand-primary/60")} />
+                      <Hash className={cn("size-4", selectedChannel?.id === channel.id ? "text-white/70" : "text-brand-secondary/40 group-hover:text-brand-primary/60")} />
                     )}
                     <span className="truncate">{channel.name}</span>
                   </div>
-                  {selectedChannel.id === channel.id && (
+                  {selectedChannel?.id === channel.id && (
                     <div className="size-1.5 rounded-full bg-white" />
                   )}
                 </button>
@@ -381,7 +754,7 @@ export function ChannelsPage() {
           </ScrollArea>
 
           <div className="mt-auto p-6 border-t border-brand-line/50">
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-secondary/40 mb-3 ml-2">Direct Messages</h3>
+            {/* <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-secondary/40 mb-3 ml-2">Direct Messages</h3>
             <div className="space-y-1">
               {[
                 { name: "Sarah J.", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=150", online: true },
@@ -395,7 +768,7 @@ export function ChannelsPage() {
                   <span className="text-sm font-medium text-brand-secondary group-hover:text-brand-ink transition-colors">{user.name}</span>
                 </button>
               ))}
-            </div>
+            </div> */}
 
             <Button className="w-full mt-6 rounded-[20px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold h-11 shadow-lg shadow-emerald-500/20">
               <PlusCircle className="mr-2 size-4" />
@@ -422,12 +795,12 @@ export function ChannelsPage() {
                 </div>
               </Button>
               <div className="flex size-8 items-center justify-center rounded-lg bg-brand-soft text-brand-primary">
-                {selectedChannel.is_private ? <Lock className="size-4" /> : <Hash className="size-4" />}
+                {selectedChannel?.is_private ? <Lock className="size-4" /> : <Hash className="size-4" />}
               </div>
               <div>
-                <h3 className="font-bold text-brand-ink">{selectedChannel.name}</h3>
+                <h3 className="font-bold text-brand-ink">{selectedChannel?.name || "Select a Channel"}</h3>
                 <p className="text-[11px] text-brand-secondary truncate max-w-[300px]">
-                  {selectedChannel.description}
+                  {selectedChannel?.description || "Pick a topic to start collaborating"}
                 </p>
               </div>
             </div>
@@ -444,35 +817,69 @@ export function ChannelsPage() {
 
           {/* Messages Area / Welcome Screen */}
           <div className="flex flex-1 flex-col items-center justify-center p-8 text-center bg-brand-soft/5">
-            <div className="size-20 rounded-3xl bg-white shadow-xl shadow-brand-ink/5 flex items-center justify-center mb-6">
-              <MessageSquare className="size-10 text-brand-primary/40" />
-            </div>
-            <h4 className="text-xl font-bold text-brand-ink">Welcome to #{selectedChannel.name}</h4>
-            <p className="mt-2 max-w-md text-sm text-brand-secondary leading-relaxed">
-              This is the very beginning of the <span className="font-semibold text-brand-primary">#{selectedChannel.name}</span> channel.
-              {selectedChannel.is_private && " This is a private channel, only invited members can see this."}
-            </p>
+            {!selectedChannel ? (
+              <div className="flex flex-col items-center animate-in fade-in duration-500">
+                <div className="size-20 rounded-3xl bg-white shadow-xl shadow-brand-ink/5 flex items-center justify-center mb-6">
+                  <Hash className="size-10 text-brand-primary/20" />
+                </div>
+                {isLoading ? (
+                  <div className="space-y-4">
+                    <h4 className="text-xl font-bold text-brand-ink">Loading Channels...</h4>
+                    <div className="flex gap-2 justify-center">
+                      <div className="size-2 rounded-full bg-brand-primary/40 animate-bounce" />
+                      <div className="size-2 rounded-full bg-brand-primary/40 animate-bounce delay-150" />
+                      <div className="size-2 rounded-full bg-brand-primary/40 animate-bounce delay-300" />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <h4 className="text-xl font-bold text-brand-ink">No Channels Found</h4>
+                    <p className="mt-2 max-w-md text-sm text-brand-secondary leading-relaxed mb-8">
+                      There are no channels in the workspace yet. Start by creating the first one!
+                    </p>
+                    <Button
+                      onClick={() => setIsDialogOpen(true)}
+                      className="rounded-2xl bg-brand-primary hover:bg-brand-primary/90 px-8 h-12 text-base font-black shadow-xl shadow-brand-primary/20"
+                    >
+                      <Plus className="mr-2 size-5" />
+                      Create First Channel
+                    </Button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="animate-in slide-in-from-bottom-4 duration-500">
+                <div className="size-20 rounded-3xl bg-white shadow-xl shadow-brand-ink/5 flex items-center justify-center mb-6 mx-auto">
+                  <MessageSquare className="size-10 text-brand-primary/40" />
+                </div>
+                <h4 className="text-xl font-bold text-brand-ink">Welcome to #{selectedChannel.name}</h4>
+                <p className="mt-2 max-w-md text-sm text-brand-secondary leading-relaxed mb-8">
+                  This is the very beginning of the <span className="font-semibold text-brand-primary">#{selectedChannel.name}</span> channel.
+                  {selectedChannel.is_private && " This is a private channel, only invited members can see this."}
+                </p>
 
-            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg">
-              <button className="flex items-center gap-3 p-4 rounded-2xl border border-brand-line bg-white hover:border-brand-primary/30 transition-colors text-left group">
-                <div className="p-2 rounded-xl bg-brand-soft text-brand-primary group-hover:bg-brand-primary group-hover:text-white transition-colors">
-                  <PlusCircle className="size-5" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg mx-auto">
+                  <button className="flex items-center gap-3 p-4 rounded-2xl border border-brand-line bg-white hover:border-brand-primary/30 transition-colors text-left group">
+                    <div className="p-2 rounded-xl bg-brand-soft text-brand-primary group-hover:bg-brand-primary group-hover:text-white transition-colors">
+                      <PlusCircle className="size-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-brand-ink">Add People</p>
+                      <p className="text-[10px] text-brand-secondary">Invite team members</p>
+                    </div>
+                  </button>
+                  <button className="flex items-center gap-3 p-4 rounded-2xl border border-brand-line bg-white hover:border-brand-primary/30 transition-colors text-left group">
+                    <div className="p-2 rounded-xl bg-brand-soft text-brand-primary group-hover:bg-brand-primary group-hover:text-white transition-colors">
+                      <Settings className="size-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-brand-ink">Channel Settings</p>
+                      <p className="text-[10px] text-brand-secondary">Manage permissions</p>
+                    </div>
+                  </button>
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-brand-ink">Add People</p>
-                  <p className="text-[10px] text-brand-secondary">Invite team members</p>
-                </div>
-              </button>
-              <button className="flex items-center gap-3 p-4 rounded-2xl border border-brand-line bg-white hover:border-brand-primary/30 transition-colors text-left group">
-                <div className="p-2 rounded-xl bg-brand-soft text-brand-primary group-hover:bg-brand-primary group-hover:text-white transition-colors">
-                  <Settings className="size-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-brand-ink">Channel Settings</p>
-                  <p className="text-[10px] text-brand-secondary">Manage permissions</p>
-                </div>
-              </button>
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Message Input Bottom Bar */}
@@ -482,8 +889,9 @@ export function ChannelsPage() {
 
                 {/* Main Textarea */}
                 <Textarea
-                  placeholder={`Message #${selectedChannel.name}`}
-                  className="min-h-[100px] w-full border-none bg-transparent px-6 py-5 text-base focus-visible:ring-0 resize-none placeholder:text-brand-ink/20"
+                  placeholder={selectedChannel ? `Message #${selectedChannel.name}` : "Select a channel to chat"}
+                  disabled={!selectedChannel}
+                  className="min-h-[100px] w-full border-none bg-transparent px-6 py-5 text-base focus-visible:ring-0 resize-none placeholder:text-brand-ink/20 disabled:cursor-not-allowed"
                 />
 
                 {/* Toolbar */}

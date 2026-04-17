@@ -398,10 +398,6 @@ export function TeamsPage() {
                       </div>
                       <div>
                         <p className="text-sm font-bold truncate max-w-[140px]">{team.name}</p>
-                        <p className={cn(
-                          "text-[10px] font-medium",
-                          selectedTeam?.id === team.id ? "text-white/60" : "text-brand-secondary/60"
-                        )}>{team.id}</p>
                       </div>
                     </div>
                     <ChevronRight className={cn(
@@ -436,7 +432,7 @@ export function TeamsPage() {
                 </h3>
                 {selectedTeam && (
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-secondary/50 truncate">Team ID: {selectedTeam.id}</span>
+                    {/* ID hidden */}
                   </div>
                 )}
               </div>
@@ -607,7 +603,7 @@ export function TeamsPage() {
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-[11px] text-brand-secondary mt-1">{member.email || member.user_id || `User ${i + 1}`}</p>
+                                <p className="text-[11px] text-brand-secondary mt-1">{member.email}</p>
                               </div>
                             </div>
                             <div className="flex items-center gap-3">
@@ -652,6 +648,8 @@ export function TeamsPage() {
           if (!open) {
             setActiveModal(null);
             setCreateError(null);
+            setUserSearchQuery("");
+            setUserSearchResults([]);
             teamForm.reset();
           }
         }}
@@ -698,24 +696,21 @@ export function TeamsPage() {
       </Dialog>
 
       {/* Add Member Modal */}
-      <Dialog open={activeModal === 'add-member'} onOpenChange={(open) => !open && setActiveModal(null)}>
+      <Dialog open={activeModal === 'add-member'} onOpenChange={(open) => {
+        if (!open) {
+          setActiveModal(null);
+          setUserSearchQuery("");
+          setUserSearchResults([]);
+          setAddMemberError(null);
+        }
+      }}>
         <DialogContent className="rounded-3xl md:rounded-[32px] border-none bg-white p-0 shadow-2xl w-[95vw] max-w-md">
           <DialogHeader className="px-8 pt-8 pb-4">
             <DialogTitle className="text-2xl font-bold text-brand-ink text-center">Add Team Member</DialogTitle>
           </DialogHeader>
           <form onSubmit={memberForm.handleSubmit(onHandleAddMember)} className="px-8 pb-8 space-y-6 text-center">
             <div className="space-y-4">
-              <div className="space-y-2 text-left">
-                <Label className="text-brand-ink font-bold ml-1">Team ID</Label>
-                <div className="relative">
-                  <Hash className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-brand-secondary/40" />
-                  <Input
-                    disabled
-                    className="pl-11 h-12 bg-brand-soft/50 border-0 rounded-2xl font-bold text-brand-ink/50 cursor-not-allowed"
-                    {...memberForm.register("teamId")}
-                  />
-                </div>
-              </div>
+              {/* Team ID hidden */}
               <div className="space-y-2 text-left relative">
                 <Label className="text-brand-ink font-bold ml-1">User ID / Email</Label>
                 <div className="relative">
@@ -727,7 +722,7 @@ export function TeamsPage() {
                       memberForm.setValue("userId", e.target.value);
                       handleUserSearch(e.target.value);
                     }}
-                    value={memberForm.watch("userId")}
+                    value={userSearchQuery}
                     disabled={isAddingMember}
                   />
                   {isSearchingUsers && (
@@ -748,6 +743,7 @@ export function TeamsPage() {
                             type="button"
                             onClick={() => {
                               memberForm.setValue("userId", user.id || user.email || user.username);
+                              setUserSearchQuery(user.name || user.username || user.email);
                               setUserSearchResults([]);
                             }}
                             className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-brand-soft transition-colors text-left group"
@@ -779,7 +775,14 @@ export function TeamsPage() {
       </Dialog>
 
       {/* Assign Lead Modal */}
-      <Dialog open={activeModal === 'assign-lead'} onOpenChange={(open) => !open && setActiveModal(null)}>
+      <Dialog open={activeModal === 'assign-lead'} onOpenChange={(open) => {
+        if (!open) {
+          setActiveModal(null);
+          setUserSearchQuery("");
+          setUserSearchResults([]);
+          setAssignLeadError(null);
+        }
+      }}>
         <DialogContent className="rounded-3xl md:rounded-[32px] border-none bg-white p-0 shadow-2xl w-[95vw] max-w-md">
           <DialogHeader className="px-8 pt-8 pb-4">
             <DialogTitle className="text-2xl font-bold text-brand-ink text-center">Assign Team Lead</DialogTitle>
@@ -793,17 +796,7 @@ export function TeamsPage() {
               </div>
             </div>
             <div className="space-y-4">
-              <div className="space-y-2 text-left">
-                <Label className="text-brand-ink font-bold ml-1">Team ID</Label>
-                <div className="relative">
-                  <Hash className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-brand-secondary/40" />
-                  <Input
-                    disabled
-                    className="pl-11 h-12 bg-brand-soft/50 border-0 rounded-2xl font-bold text-brand-ink/50 cursor-not-allowed"
-                    {...leadForm.register("teamId")}
-                  />
-                </div>
-              </div>
+              {/* Team ID hidden */}
               <div className="space-y-2 text-left relative">
                 <Label className="text-brand-ink font-bold ml-1">User ID / Name</Label>
                 <div className="relative">
@@ -815,7 +808,7 @@ export function TeamsPage() {
                       leadForm.setValue("userId", e.target.value);
                       handleUserSearch(e.target.value);
                     }}
-                    value={leadForm.watch("userId")}
+                    value={userSearchQuery}
                     disabled={isAssigningLead}
                   />
                   {isSearchingUsers && (
@@ -836,6 +829,7 @@ export function TeamsPage() {
                             type="button"
                             onClick={() => {
                               leadForm.setValue("userId", user.id || user.email || user.username);
+                              setUserSearchQuery(user.name || user.username || user.email);
                               setUserSearchResults([]);
                             }}
                             className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-brand-soft transition-colors text-left group"
